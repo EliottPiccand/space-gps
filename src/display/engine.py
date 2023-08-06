@@ -4,18 +4,27 @@ Module providing the display engine class
 
 import logging
 
-from glfw import create_window
+from glfw import create_window, window_hint
 from glfw import init as glfw_init
 from glfw import terminate as glfw_terminate
-from glfw import window_hint
 from glfw.GLFW import GLFW_CLIENT_API, GLFW_NO_API, GLFW_RESIZABLE, GLFW_TRUE
-from vulkan import vkDestroyInstance
+from vulkan import vkDestroyDevice, vkDestroyInstance
 
 from src.consts import DEBUG
 
-from .hinting import VkInstance, Window, VkDebugReportCallbackEXT
-from .instance import make_instance
-from .validation_layers import make_debug_messenger, destroy_debug_messenger
+from .device import chose_physical_device, make_logical_device
+from .hinting import (
+    VkDebugReportCallbackEXT,
+    VkDevice,
+    VkGraphicsQueue,
+    VkInstance,
+    VkPhysicalDevice,
+    VkPresentQueue,
+    Window, VkSurface
+)
+from .instance import make_instance, make_surface, destroy_surface
+from .queue_families import QueueFamilyIndices, get_queues
+from .validation_layers import destroy_debug_messenger, make_debug_messenger
 
 
 class Engine:
@@ -36,7 +45,16 @@ class Engine:
         # Instance
         self.__instance: VkInstance = None
         self.__debug_messenger: VkDebugReportCallbackEXT = None
+        self.__surface: VkSurface = None
         self.__make_instance()
+
+        # Devices
+        self.__physical_device: VkPhysicalDevice = None
+        self.__device: VkDevice = None
+        self.__queue_families_indices: QueueFamilyIndices = None
+        self.__graphics_queue: VkGraphicsQueue = None
+        self.__present_queue: VkPresentQueue = None
+        self.__make_devices()
 
     def __build_glfw_window(self):
         glfw_init()
@@ -57,7 +75,7 @@ class Engine:
                 self.title, self.width, self.height
             )
         else:
-            logging.debug("Failed to create the GLFW window")
+            logging.error("Failed to create the GLFW window")
 
     def __make_instance(self):
         self.__instance = make_instance(self.title)
@@ -65,13 +83,31 @@ class Engine:
         if DEBUG:
             self.__debug_messenger = make_debug_messenger(self.__instance)
 
+        self.__surface = make_surface(self.__instance, self.window)
+
+    def __make_devices(self):
+        self.__physical_device = chose_physical_device(self.__instance)
+        self.__device, self.__queue_families_indices = make_logical_device(
+            self.__instance,
+            self.__physical_device,
+            self.__surface
+        )
+        self.__graphics_queue, self.__present_queue = get_queues(
+            self.__device,
+            self.__queue_families_indices
+        )
+
     def close(self):
         """
         Close the GLFW window and clean Vulkan objects
         """
-        logging.debug("Destroying objects")       
+        logging.debug("Destroying objects")
+
+        # Device
+        vkDestroyDevice(self.__device, None)
 
         # Instance
+        destroy_surface(self.__instance, self.__surface)
         destroy_debug_messenger(self.__instance, self.__debug_messenger)
         vkDestroyInstance(self.__instance, None)
 

@@ -11,17 +11,17 @@ from vulkan import VK_FALSE, VK_TRUE
 Window: TypeAlias = Any # Ugly but I dont't know how to do it properly
 
 VkInstance: TypeAlias = _CDataBase
-VkDebugReportCallbackEXT: TypeAlias = _CDataBase # pylint: disable=invalid-name
+VkDebugReportCallbackEXT: TypeAlias = _CDataBase
 VkPhysicalDevice: TypeAlias = _CDataBase
 VkDevice: TypeAlias = _CDataBase
 VkGraphicsQueue: TypeAlias = _CDataBase
 VkPresentQueue: TypeAlias = _CDataBase
 VkSurface: TypeAlias = _CDataBase
-VkSurfaceCapabilitiesKHR: TypeAlias = __CDataOwn # pylint: disable=invalid-name
-VkSurfaceFormatsKHR: TypeAlias = __CDataOwn # pylint: disable=invalid-name
-VkSurfaceFormatKHR: TypeAlias = _CDataBase # pylint: disable=invalid-name
-VkPresentModeKHR: TypeAlias = __CDataOwn # pylint: disable=invalid-name
-VkSwapchainKHR: TypeAlias = _CDataBase # pylint: disable=invalid-name
+VkSurfaceCapabilitiesKHR: TypeAlias = __CDataOwn
+VkSurfaceFormatsKHR: TypeAlias = __CDataOwn
+VkSurfaceFormatKHR: TypeAlias = _CDataBase
+VkPresentModeKHR: TypeAlias = __CDataOwn
+VkSwapchainKHR: TypeAlias = _CDataBase
 VkImage: TypeAlias = __CDataOwn
 VkImageView: TypeAlias = _CDataBase
 VkShaderModule: TypeAlias = _CDataBase

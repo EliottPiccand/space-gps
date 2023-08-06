@@ -1,24 +1,37 @@
 """
-Contain all function to create a vulkan instance
+Contain all functions to create a vulkan instance
 """
 
 import logging
 from typing import List, Optional
 
-from glfw import get_required_instance_extensions
-from vulkan import (VK_EXT_DEBUG_REPORT_EXTENSION_NAME, VK_MAKE_VERSION,
-                    VK_VERSION_MAJOR, VK_VERSION_MINOR, VK_VERSION_PATCH,
-                    VkApplicationInfo, VkError, VkException,
-                    VkInstanceCreateInfo, vkCreateInstance,
-                    vkEnumerateInstanceExtensionProperties,
-                    vkEnumerateInstanceLayerProperties,
-                    vkEnumerateInstanceVersion)
+from glfw import create_window_surface, get_required_instance_extensions
+from vulkan import (
+    VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
+    VK_MAKE_VERSION,
+    VK_SUCCESS,
+    VK_VERSION_MAJOR,
+    VK_VERSION_MINOR,
+    VK_VERSION_PATCH,
+    VkApplicationInfo,
+    VkError,
+    VkException,
+    VkInstanceCreateInfo,
+    vkCreateInstance,
+    vkEnumerateInstanceExtensionProperties,
+    vkEnumerateInstanceLayerProperties,
+    vkEnumerateInstanceVersion, vkGetInstanceProcAddr
+)
+from vulkan import ffi as c_linker
 
 from src.consts import APPLICATION_VERSION, DEBUG
 
-from .consts import (GRAPHICS_ENGINE_NAME, GRAPHICS_ENGINE_VERSION,
-                     REQUIRED_VULKAN_VERSION)
-from .hinting import VkInstance
+from .consts import (
+    GRAPHICS_ENGINE_NAME,
+    GRAPHICS_ENGINE_VERSION,
+    REQUIRED_VULKAN_VERSION,
+)
+from .hinting import VkInstance, VkSurface, Window
 
 
 def _get_required_layers() -> List[str]:
@@ -65,10 +78,13 @@ def make_instance(application_name: str) -> Optional[VkInstance]:
         Optional[VkInstance]: the created vulkan instance
     """
 
-    max_supported_version = vkEnumerateInstanceVersion()    
+    max_supported_version = vkEnumerateInstanceVersion()
     if REQUIRED_VULKAN_VERSION > max_supported_version:
         logging.warning(
-            "Application requires vulkan %s.%s.%s but system's max supported is %s.%s.%s",
+            (
+                "Application requires vulkan %s.%s.%s "
+                "but system's max supported is %s.%s.%s"
+            ),
             VK_VERSION_MAJOR(REQUIRED_VULKAN_VERSION) & 0x7F,
             VK_VERSION_MINOR(REQUIRED_VULKAN_VERSION),
             VK_VERSION_PATCH(REQUIRED_VULKAN_VERSION),
@@ -102,3 +118,31 @@ def make_instance(application_name: str) -> Optional[VkInstance]:
     except (VkException, VkError) as e:
         logging.error("Failed to create the vulkan instance ! (%s)", e )
         return None
+
+def make_surface(instance: VkInstance, window: Window) -> VkSurface:
+    """Create a VkSurface
+
+    Args:
+        instance (VkInstance): the instance to which the surface will be linked
+        window (Window): the window to which the surface will be linked
+
+    Returns:
+        VkSurface: the created surface
+    """
+
+    surface_ptr = c_linker.new("VkSurfaceKHR*")
+    if create_window_surface(instance, window, None, surface_ptr) != VK_SUCCESS:
+        logging.error("Failed to create the surface")
+
+    return surface_ptr[0]
+
+def destroy_surface(instance: VkInstance, surface: VkSurface):
+    """Destroy the given surface
+
+    Args:
+        instance (VkInstance): the instance to which the surface is linked
+        surface (VkSurface): the surface
+    """
+
+    vkDestroySurfaceKHR = vkGetInstanceProcAddr(instance, "vkDestroySurfaceKHR")
+    vkDestroySurfaceKHR(instance, surface, None)

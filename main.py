@@ -17,10 +17,11 @@ class SpaceGPS:
             "Space GPS"
         )
 
-    def __del__(self):
+    def close(self):
         self.__display_engine.close()
 
 
 if __name__ == "__main__":
     setup_logger()
-    SpaceGPS()
+    app = SpaceGPS()
+    app.close()
