@@ -50,7 +50,7 @@ def _debug_callback( # pylint: disable=too-many-arguments,unused-argument
     if flags >= VK_DEBUG_REPORT_DEBUG_BIT_EXT:
         logging.debug(message)
     elif flags >= VK_DEBUG_REPORT_ERROR_BIT_EXT:
-        logging.error(message)
+        logging.error("%s\n", message)
     elif flags >= VK_DEBUG_REPORT_WARNING_BIT_EXT:
         # and VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT
         logging.warning(message)

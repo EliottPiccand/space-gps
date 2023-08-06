@@ -40,5 +40,6 @@ VkBuffer: TypeAlias = _CDataBase
 VkDeviceMemory: TypeAlias = _CDataBase
 VkBufferUsageFlagBits: TypeAlias = int
 VkDeviceSize: TypeAlias = int
+VkSurfaceTransformFlagBitsKHR: TypeAlias = int
 
 VkBool: TypeAlias = Literal[VK_TRUE] | Literal[VK_FALSE]

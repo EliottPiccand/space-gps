@@ -3,12 +3,13 @@ Module providing the display engine class
 """
 
 import logging
+from typing import List
 
 from glfw import create_window, window_hint
 from glfw import init as glfw_init
 from glfw import terminate as glfw_terminate
-from glfw.GLFW import GLFW_CLIENT_API, GLFW_NO_API, GLFW_RESIZABLE, GLFW_TRUE
-from vulkan import vkDestroyDevice, vkDestroyInstance
+from glfw.GLFW import GLFW_CLIENT_API, GLFW_NO_API, GLFW_RESIZABLE, GLFW_FALSE
+from vulkan import VkExtent2D, vkDestroyDevice, vkDestroyInstance, vkDestroyImageView
 
 from src.consts import DEBUG
 
@@ -20,10 +21,14 @@ from .hinting import (
     VkInstance,
     VkPhysicalDevice,
     VkPresentQueue,
-    Window, VkSurface
+    VkSurface,
+    VkSurfaceFormatKHR,
+    VkSwapchainKHR,
+    Window,
 )
-from .instance import make_instance, make_surface, destroy_surface
+from .instance import destroy_surface, make_instance, make_surface
 from .queue_families import QueueFamilyIndices, get_queues
+from .swapchain import SwapChainFrame, make_swapchain, destroy_swapchain
 from .validation_layers import destroy_debug_messenger, make_debug_messenger
 
 
@@ -56,11 +61,18 @@ class Engine:
         self.__present_queue: VkPresentQueue = None
         self.__make_devices()
 
+        # Swapchain
+        self.__swapchain: VkSwapchainKHR = None
+        self.__swapchain_frames: List[SwapChainFrame] = []
+        self.__swapchain_format: VkSurfaceFormatKHR = None
+        self.__swapchain_extent: VkExtent2D = None
+        self.__make_swapchain()
+
     def __build_glfw_window(self):
         glfw_init()
 
         window_hint(GLFW_CLIENT_API, GLFW_NO_API)
-        window_hint(GLFW_RESIZABLE, GLFW_TRUE)
+        window_hint(GLFW_RESIZABLE, GLFW_FALSE)
 
         self.window = create_window(
             self.width,self.height,
@@ -97,11 +109,28 @@ class Engine:
             self.__queue_families_indices
         )
 
+    def __make_swapchain(self):
+        self.__swapchain, self.__swapchain_frames, \
+        self.__swapchain_format, self.__swapchain_extent = make_swapchain(
+            self.__instance,
+            self.__device,
+            self.__physical_device,
+            self.__surface,
+            self.width,
+            self.height,
+            self.__queue_families_indices
+        )
+
     def close(self):
         """
         Close the GLFW window and clean Vulkan objects
         """
         logging.debug("Destroying objects")
+
+        # Swapchain
+        for frame in self.__swapchain_frames:
+            vkDestroyImageView(self.__device, frame.image_view, None)
+        destroy_swapchain(self.__device, self.__swapchain)
 
         # Device
         vkDestroyDevice(self.__device, None)
