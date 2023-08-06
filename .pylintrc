@@ -1,0 +1,8 @@
+[MASTER]
+disable=
+    R0914, # too-many-locals
+    R0913, # too-many-arguments
+    R0902, # too-many-instance-attributes
+
+[MAIN]
+good-names=e,i,dt
