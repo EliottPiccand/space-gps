@@ -8,19 +8,55 @@ from typing import List
 from glfw import create_window, window_hint
 from glfw import init as glfw_init
 from glfw import terminate as glfw_terminate
-from glfw.GLFW import GLFW_CLIENT_API, GLFW_NO_API, GLFW_RESIZABLE, GLFW_FALSE
-from vulkan import VkExtent2D, vkDestroyDevice, vkDestroyInstance, vkDestroyImageView
+from glfw.GLFW import GLFW_CLIENT_API, GLFW_FALSE, GLFW_NO_API, GLFW_RESIZABLE
+from vulkan import (
+    VK_NULL_HANDLE,
+    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+    VK_TRUE,
+    VkError,
+    VkException,
+    VkExtent2D,
+    VkPresentInfoKHR,
+    VkSubmitInfo,
+    vkDestroyCommandPool,
+    vkDestroyDevice,
+    vkDestroyFence,
+    vkDestroyFramebuffer,
+    vkDestroyImageView,
+    vkDestroyInstance,
+    vkDestroyPipeline,
+    vkDestroyPipelineLayout,
+    vkDestroyRenderPass,
+    vkDestroySemaphore,
+    vkDeviceWaitIdle,
+    vkGetDeviceProcAddr,
+    vkQueueSubmit,
+    vkResetCommandBuffer,
+    vkResetFences,
+    vkWaitForFences,
+)
 
-from src.consts import DEBUG
+from src.consts import BASE_DIR, DEBUG
 
+from .commands import make_command_buffers, make_command_pool, record_draw_command
+from .consts import FRAG_SHADER_PATH, RENDER_FENCE_TIMEOUT, VERT_SHADER_PATH
 from .device import chose_physical_device, make_logical_device
+from .frame_buffer import make_frame_buffers
+from .graphics_pipeline import make_graphics_pipeline
 from .hinting import (
+    VkCommandBuffer,
+    VkCommandPool,
     VkDebugReportCallbackEXT,
     VkDevice,
+    VkFence,
     VkGraphicsQueue,
     VkInstance,
     VkPhysicalDevice,
+    VkPipeline,
+    VkPipelineLayout,
     VkPresentQueue,
+    VkRenderPass,
+    VkSemaphore,
     VkSurface,
     VkSurfaceFormatKHR,
     VkSwapchainKHR,
@@ -28,7 +64,8 @@ from .hinting import (
 )
 from .instance import destroy_surface, make_instance, make_surface
 from .queue_families import QueueFamilyIndices, get_queues
-from .swapchain import SwapChainFrame, make_swapchain, destroy_swapchain
+from .swapchain import SwapChainFrame, destroy_swapchain, make_swapchain
+from .sync import make_fence, make_semaphore
 from .validation_layers import destroy_debug_messenger, make_debug_messenger
 
 
@@ -67,6 +104,26 @@ class Engine:
         self.__swapchain_format: VkSurfaceFormatKHR = None
         self.__swapchain_extent: VkExtent2D = None
         self.__make_swapchain()
+
+        # Graphics pipeline
+        self.__pipeline_layout: VkPipelineLayout = None
+        self.__render_pass: VkRenderPass = None
+        self.__graphics_pipeline: VkPipeline = None
+        self.__make_graphics_pipeline()
+
+        # Frame buffers
+        self.__make_frame_buffers()
+
+        # Commands
+        self.__command_pool: VkCommandPool = None
+        self.__command_buffer: VkCommandBuffer = None
+        self.__make_commands()
+
+        # Semaphores & Fences
+        self.__in_flight_fence: VkFence = None
+        self.__image_available_semaphore: VkSemaphore = None
+        self.__render_finished_semaphore: VkSemaphore = None
+        self.__make_frame_sync()
 
     def __build_glfw_window(self):
         glfw_init()
@@ -121,15 +178,132 @@ class Engine:
             self.__queue_families_indices
         )
 
+    def __make_graphics_pipeline(self):
+        self.__pipeline_layout, self.__render_pass, self.__graphics_pipeline = \
+        make_graphics_pipeline(
+            self.__device,
+            self.__swapchain_extent,
+            self.__swapchain_format,
+            BASE_DIR / VERT_SHADER_PATH,
+            BASE_DIR / FRAG_SHADER_PATH
+        )
+
+    def __make_frame_buffers(self):
+        make_frame_buffers(
+            self.__device,
+            self.__render_pass,
+            self.__swapchain_extent,
+            self.__swapchain_frames
+        )
+
+    def __make_commands(self):
+        self.__command_pool = make_command_pool(
+            self.__device,
+            self.__queue_families_indices
+        )
+
+        self.__command_buffer = make_command_buffers(
+            self.__device,
+            self.__command_pool,
+            self.__swapchain_frames
+        )
+
+    def __make_frame_sync(self):
+        self.__in_flight_fence = make_fence(self.__device)
+        self.__image_available_semaphore = make_semaphore(self.__device)
+        self.__render_finished_semaphore = make_semaphore(self.__device)
+
+    def render(self):
+        """
+        Render the scene to the screen
+        """
+
+        vkAcquireNextImageKHR = vkGetDeviceProcAddr(
+            self.__device, "vkAcquireNextImageKHR")
+        vkQueuePresentKHR = vkGetDeviceProcAddr(
+            self.__device, "vkQueuePresentKHR")
+
+
+        vkWaitForFences(
+            device     = self.__device,
+            fenceCount = 1,
+            pFences    = [self.__in_flight_fence],
+            waitAll    = VK_TRUE,
+            timeout    = RENDER_FENCE_TIMEOUT
+        )
+        vkResetFences(self.__device, 1, [self.__in_flight_fence])
+
+
+        frame_index = vkAcquireNextImageKHR(
+            device    = self.__device,
+            swapchain = self.__swapchain,
+            timeout   = RENDER_FENCE_TIMEOUT,
+            semaphore = self.__image_available_semaphore,
+            fence     = VK_NULL_HANDLE
+        )
+
+        command_buffer = self.__swapchain_frames[frame_index].command_buffer
+        vkResetCommandBuffer(command_buffer, 0)
+
+        record_draw_command(
+            render_pass       = self.__render_pass,
+            frame_buffer      = self.__swapchain_frames[frame_index].frame_buffer,
+            swapchain_extent  = self.__swapchain_extent,
+            graphics_pipeline = self.__graphics_pipeline,
+            command_buffer    = command_buffer
+        )
+
+        submit_info = VkSubmitInfo(
+            waitSemaphoreCount   = 1,
+            pWaitSemaphores      = [self.__image_available_semaphore],
+            pWaitDstStageMask    = [VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT],
+            commandBufferCount   = 1,
+            pCommandBuffers      = [command_buffer],
+            signalSemaphoreCount = 1,
+            pSignalSemaphores    = [self.__render_finished_semaphore]
+        )
+
+        try:
+            vkQueueSubmit(self.__graphics_queue, 1, submit_info, self.__in_flight_fence)
+        except (VkError, VkException):
+            logging.error("Failed to submit draw commands")
+
+        present_info = VkPresentInfoKHR(
+            waitSemaphoreCount = 1,
+            pWaitSemaphores    = [self.__render_finished_semaphore],
+            swapchainCount     = 1,
+            pSwapchains        = [self.__swapchain],
+            pImageIndices      = [frame_index]
+        )
+
+        vkQueuePresentKHR(self.__present_queue, present_info)
+
     def close(self):
         """
         Close the GLFW window and clean Vulkan objects
         """
+        logging.info("Waiting for device to cleanup")
+        vkDeviceWaitIdle(self.__device)
+
         logging.debug("Destroying objects")
+
+        # Sync
+        vkDestroySemaphore(self.__device, self.__render_finished_semaphore, None)
+        vkDestroySemaphore(self.__device, self.__image_available_semaphore, None)
+        vkDestroyFence(self.__device, self.__in_flight_fence, None)
+
+        # Commands
+        vkDestroyCommandPool(self.__device, self.__command_pool, None)
+
+        # Graphics pipeline
+        vkDestroyPipeline(self.__device, self.__graphics_pipeline, None)
+        vkDestroyRenderPass(self.__device, self.__render_pass, None)
+        vkDestroyPipelineLayout(self.__device, self.__pipeline_layout, None)
 
         # Swapchain
         for frame in self.__swapchain_frames:
             vkDestroyImageView(self.__device, frame.image_view, None)
+            vkDestroyFramebuffer(self.__device, frame.frame_buffer, None)
         destroy_swapchain(self.__device, self.__swapchain)
 
         # Device

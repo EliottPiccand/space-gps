@@ -3,7 +3,7 @@ Contain all functions to handle the swapchain
 """
 
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 from vulkan import (
     VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
@@ -29,7 +29,9 @@ from vulkan import (
 )
 
 from .hinting import (
+    VkCommandBuffer,
     VkDevice,
+    VkFrameBuffer,
     VkImage,
     VkInstance,
     VkPhysicalDevice,
@@ -49,8 +51,8 @@ class SwapChainFrame:
 
     image: VkImage
     image_view: int
-    # frame_buffer: Optional[VkFrameBuffer] = None
-    # command_buffer: Optional[VkCommandBuffer] = None
+    frame_buffer: Optional[VkFrameBuffer] = None
+    command_buffer: Optional[VkCommandBuffer] = None
     # in_flight_fence: Optional[VkFence] = None
     # image_available_semaphore: Optional[VkSemaphore] = None
     # render_finished_semaphore: Optional[VkSemaphore] = None
