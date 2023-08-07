@@ -5,15 +5,16 @@ Module providing the display engine class
 import logging
 from typing import List
 
-from glfw import create_window, window_hint
+from glfw import create_window, get_window_size, wait_events, window_hint
 from glfw import init as glfw_init
 from glfw import terminate as glfw_terminate
-from glfw.GLFW import GLFW_CLIENT_API, GLFW_FALSE, GLFW_NO_API, GLFW_RESIZABLE
+from glfw.GLFW import GLFW_CLIENT_API, GLFW_NO_API, GLFW_RESIZABLE, GLFW_TRUE
 from vulkan import (
     VK_NULL_HANDLE,
     VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
     VK_TRUE,
     VkError,
+    VkErrorOutOfDateKhr,
     VkException,
     VkExtent2D,
     VkPresentInfoKHR,
@@ -38,7 +39,7 @@ from vulkan import (
 
 from src.consts import BASE_DIR, DEBUG
 
-from .commands import make_command_buffers, make_command_pool, record_draw_command
+from .commands import make_command_buffer, make_command_pool, record_draw_command
 from .consts import FRAG_SHADER_PATH, RENDER_FENCE_TIMEOUT, VERT_SHADER_PATH
 from .device import chose_physical_device, make_logical_device
 from .frame_buffer import make_frame_buffers
@@ -62,10 +63,10 @@ from .hinting import (
 )
 from .instance import destroy_surface, make_instance, make_surface
 from .queue_families import QueueFamilyIndices, get_queues
+from .scene import Scene
 from .swapchain import SwapChainFrame, destroy_swapchain, make_swapchain
 from .sync import make_fence, make_semaphore
 from .validation_layers import destroy_debug_messenger, make_debug_messenger
-from .scene import Scene
 
 
 class Engine:
@@ -73,6 +74,7 @@ class Engine:
     Handle a glfw window with vulkan
     """
 
+    # Init
     def __init__(self, width: int, height: int, title: str):
 
         self.width = width
@@ -127,7 +129,7 @@ class Engine:
         glfw_init()
 
         window_hint(GLFW_CLIENT_API, GLFW_NO_API)
-        window_hint(GLFW_RESIZABLE, GLFW_FALSE)
+        window_hint(GLFW_RESIZABLE, GLFW_TRUE)
 
         self.window = create_window(
             self.width,self.height,
@@ -202,10 +204,15 @@ class Engine:
             self.__queue_families_indices
         )
 
-        self.__command_buffer = make_command_buffers(
+        for frame in self.__swapchain_frames:
+            frame.command_buffer = make_command_buffer(
+                self.__device,
+                self.__command_pool
+            )
+
+        self.__command_buffer = make_command_buffer(
             self.__device,
-            self.__command_pool,
-            self.__swapchain_frames
+            self.__command_pool
         )
 
     def __make_frame_sync(self):
@@ -213,6 +220,7 @@ class Engine:
             frame.in_flight_fence = make_fence(self.__device)
             frame.image_available_semaphore = make_semaphore(self.__device)
             frame.render_finished_semaphore = make_semaphore(self.__device)
+    # ---
 
     def render(self, scene: Scene):
         """
@@ -240,14 +248,16 @@ class Engine:
         )
         vkResetFences(self.__device, 1, [in_flight_fence])
 
-
-        frame_index = vkAcquireNextImageKHR(
-            device    = self.__device,
-            swapchain = self.__swapchain,
-            timeout   = RENDER_FENCE_TIMEOUT,
-            semaphore = image_available_semaphore,
-            fence     = VK_NULL_HANDLE
-        )
+        try:
+            frame_index = vkAcquireNextImageKHR(
+                device    = self.__device,
+                swapchain = self.__swapchain,
+                timeout   = RENDER_FENCE_TIMEOUT,
+                semaphore = image_available_semaphore,
+                fence     = VK_NULL_HANDLE
+            )
+        except VkErrorOutOfDateKhr:
+            self.__recreate_swapchain()
 
         command_buffer = self.__swapchain_frames[frame_index].command_buffer
         vkResetCommandBuffer(command_buffer, 0)
@@ -285,12 +295,43 @@ class Engine:
             pImageIndices      = [frame_index]
         )
 
-        vkQueuePresentKHR(self.__present_queue, present_info)
+        try:
+            vkQueuePresentKHR(self.__present_queue, present_info)
+        except VkErrorOutOfDateKhr:
+            self.__recreate_swapchain()
 
         self.__current_frame_number += 1
         self.__current_frame_number %= self.__max_frames_in_flight
 
-    def close(self):
+    def __recreate_swapchain(self):
+
+        # Don't recreate the swapchain if the window is mimnimized
+        self.width = 0
+        self.height = 0
+        while (self.width == 0 or self.height == 0):
+            self.width, self.height = get_window_size(self.window)
+            wait_events()
+
+        logging.debug("Waiting for device to recreate the swapchain")
+        vkDeviceWaitIdle(self.__device)
+
+        logging.debug("Recreating the swapchain")
+
+        self.__cleanup_swapchain()
+
+        self.__make_swapchain()
+        self.__make_frame_buffers()
+
+        for frame in self.__swapchain_frames:
+            frame.command_buffer = make_command_buffer(
+                self.__device,
+                self.__command_pool
+            )
+
+        self.__make_frame_sync()
+
+    # Cleanup
+    def cleanup(self):
         """
         Close the GLFW window and clean Vulkan objects
         """
@@ -309,15 +350,7 @@ class Engine:
         vkDestroyPipelineLayout(self.__device, self.__pipeline_layout, None)
 
         # Swapchain
-        for frame in self.__swapchain_frames:
-            vkDestroyImageView(self.__device, frame.image_view, None)
-            vkDestroyFramebuffer(self.__device, frame.frame_buffer, None)
-
-            vkDestroySemaphore(self.__device, frame.render_finished_semaphore, None)
-            vkDestroySemaphore(self.__device, frame.image_available_semaphore, None)
-            vkDestroyFence(self.__device, frame.in_flight_fence, None)
-
-        destroy_swapchain(self.__device, self.__swapchain)
+        self.__cleanup_swapchain()
 
         # Device
         vkDestroyDevice(self.__device, None)
@@ -332,3 +365,14 @@ class Engine:
         glfw_terminate()
 
         logging.info("Cleanup done !")
+
+    def __cleanup_swapchain(self):
+        for frame in self.__swapchain_frames:
+            vkDestroyImageView(self.__device, frame.image_view, None)
+            vkDestroyFramebuffer(self.__device, frame.frame_buffer, None)
+
+            vkDestroySemaphore(self.__device, frame.render_finished_semaphore, None)
+            vkDestroySemaphore(self.__device, frame.image_available_semaphore, None)
+            vkDestroyFence(self.__device, frame.in_flight_fence, None)
+
+        destroy_swapchain(self.__device, self.__swapchain)

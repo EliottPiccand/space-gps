@@ -3,7 +3,7 @@ Contain all functions to create the command pool
 """
 
 import logging
-from typing import List, Optional
+from typing import Optional
 
 from numpy import float32
 from pyrr import matrix44
@@ -46,7 +46,6 @@ from .hinting import (
 )
 from .queue_families import QueueFamilyIndices
 from .scene import Scene
-from .swapchain import SwapChainFrame
 
 
 def make_command_pool(
@@ -75,10 +74,21 @@ def make_command_pool(
         logging.error("Failed to create the command buffer")
         return None
 
-def _make_command_buffer(
+def make_command_buffer(
     device: VkDevice,
     command_pool: VkCommandPool
 ) -> Optional[VkCommandBuffer]:
+    """Allocate a command buffer
+
+    Args:
+        device (VkDevice): the device to which the command buffer will be linked 
+        command_pool (VkCommandPool): the command pool used
+
+    Returns:
+        Optional[VkCommandPool]: The created command pool. Might be None if creation
+            failed.
+    """
+
     allocate_info = VkCommandBufferAllocateInfo(
         commandPool        = command_pool,
         level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
@@ -90,29 +100,6 @@ def _make_command_buffer(
     except (VkError, VkException):
         logging.error("Failed to allocate the command buffer")
         return None
-
-def make_command_buffers(
-    device: VkDevice,
-    command_pool: VkCommandPool,
-    frames: List[SwapChainFrame]
-) -> Optional[VkCommandBuffer]:
-    """Allocate a command buffer for each frame plus one main
-
-    Args:
-        device (VkDevice): the device to which the command buffer will be linked 
-        command_pool (VkCommandPool): the command pool used
-        frames (List[SwapChainFrame]): the list of swapchain frames
-
-    Returns:
-        Optional[VkCommandPool]: The created command pool. Might be None if creation
-            failed.
-    """
-
-    for frame in frames:
-        frame.command_buffer = _make_command_buffer(device, command_pool)
-
-    return _make_command_buffer(device, command_pool)
-
 
 class CommandBufferManager:
     """

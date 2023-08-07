@@ -58,7 +58,7 @@ class SpaceGPS:
         """
         Cleanup the application, must be called at the end of the programm
         """
-        self.__display_engine.close()
+        self.__display_engine.cleanup()
 
 
 if __name__ == "__main__":
