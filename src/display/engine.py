@@ -9,16 +9,27 @@ from glfw import create_window, get_window_size, wait_events, window_hint
 from glfw import init as glfw_init
 from glfw import terminate as glfw_terminate
 from glfw.GLFW import GLFW_CLIENT_API, GLFW_NO_API, GLFW_RESIZABLE, GLFW_TRUE
+from numpy import float32
+from pyrr import matrix44
 from vulkan import (
     VK_NULL_HANDLE,
+    VK_PIPELINE_BIND_POINT_GRAPHICS,
     VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+    VK_SHADER_STAGE_VERTEX_BIT,
+    VK_SUBPASS_CONTENTS_INLINE,
     VK_TRUE,
+    VkClearValue,
     VkError,
     VkErrorOutOfDateKhr,
     VkException,
     VkExtent2D,
     VkPresentInfoKHR,
+    VkRenderPassBeginInfo,
     VkSubmitInfo,
+    vkCmdBindPipeline,
+    vkCmdBindVertexBuffers,
+    vkCmdDraw,
+    vkCmdPushConstants,
     vkDestroyCommandPool,
     vkDestroyDevice,
     vkDestroyFence,
@@ -36,10 +47,16 @@ from vulkan import (
     vkResetFences,
     vkWaitForFences,
 )
+from vulkan import ffi as c_link
 
 from src.consts import BASE_DIR, DEBUG
 
-from .commands import make_command_buffer, make_command_pool, record_draw_command
+from .commands import (
+    CommandBufferManager,
+    RenderPassManager,
+    make_command_buffer,
+    make_command_pool,
+)
 from .consts import FRAG_SHADER_PATH, RENDER_FENCE_TIMEOUT, VERT_SHADER_PATH
 from .device import chose_physical_device, make_logical_device
 from .frame_buffer import make_frame_buffers
@@ -49,6 +66,7 @@ from .hinting import (
     VkCommandPool,
     VkDebugReportCallbackEXT,
     VkDevice,
+    VkFrameBuffer,
     VkGraphicsQueue,
     VkInstance,
     VkPhysicalDevice,
@@ -66,6 +84,7 @@ from .queue_families import QueueFamilyIndices, get_queues
 from .scene import Scene
 from .swapchain import SwapChainFrame, destroy_swapchain, make_swapchain
 from .sync import make_fence, make_semaphore
+from .triangle_mesh import TriangleMesh
 from .validation_layers import destroy_debug_messenger, make_debug_messenger
 
 
@@ -124,6 +143,9 @@ class Engine:
 
         # Semaphores & Fences
         self.__make_frame_sync()
+
+        # Assets
+        self.__make_assets()
 
     def __build_glfw_window(self):
         glfw_init()
@@ -220,6 +242,9 @@ class Engine:
             frame.in_flight_fence = make_fence(self.__device)
             frame.image_available_semaphore = make_semaphore(self.__device)
             frame.render_finished_semaphore = make_semaphore(self.__device)
+
+    def __make_assets(self):
+        self.__triangle_mesh = TriangleMesh(self.__device, self.__physical_device)
     # ---
 
     def render(self, scene: Scene):
@@ -262,12 +287,8 @@ class Engine:
         command_buffer = self.__swapchain_frames[frame_index].command_buffer
         vkResetCommandBuffer(command_buffer, 0)
 
-        record_draw_command(
-            pipeline_layout   = self.__pipeline_layout,
-            render_pass       = self.__render_pass,
+        self.__record_draw_command(
             frame_buffer      = self.__swapchain_frames[frame_index].frame_buffer,
-            swapchain_extent  = self.__swapchain_extent,
-            graphics_pipeline = self.__graphics_pipeline,
             command_buffer    = command_buffer,
             scene             = scene
         )
@@ -302,6 +323,72 @@ class Engine:
 
         self.__current_frame_number += 1
         self.__current_frame_number %= self.__max_frames_in_flight
+
+    def __record_draw_command(
+        self,
+        command_buffer: VkCommandBuffer,
+        frame_buffer: VkFrameBuffer,
+        scene: Scene
+    ):
+
+        with CommandBufferManager(command_buffer):
+
+            clear_color = VkClearValue([[1.0, 0.5, 0.25, 1.0]])
+            render_pass_begin_info = VkRenderPassBeginInfo(
+                renderPass = self.__render_pass,
+                framebuffer = frame_buffer,
+                renderArea = [[0, 0], self.__swapchain_extent],
+                clearValueCount = 1,
+                pClearValues = c_link.addressof(clear_color)
+            )
+
+            with RenderPassManager(
+                command_buffer,
+                render_pass_begin_info,
+                VK_SUBPASS_CONTENTS_INLINE
+            ):
+                vkCmdBindPipeline(
+                    command_buffer,
+                    VK_PIPELINE_BIND_POINT_GRAPHICS,
+                    self.__graphics_pipeline
+                )
+
+                self.__prepare_scene(command_buffer)
+
+                for pos in scene.triangle_positions:
+                    model_transform = matrix44.create_from_translation(
+                        vec   = pos,
+                        dtype = float32
+                    )
+
+                    object_data = c_link.cast(
+                        "float*", c_link.from_buffer(model_transform))
+
+                    vkCmdPushConstants(
+                        commandBuffer = command_buffer,
+                        layout        = self.__pipeline_layout,
+                        stageFlags    = VK_SHADER_STAGE_VERTEX_BIT,
+                        offset        = 0,
+                        size          = (4 * 4) * 4, # mat4 * float32
+                        pValues       = object_data
+                    )
+
+                    vkCmdDraw(
+                        commandBuffer = command_buffer,
+                        vertexCount   = 3,
+                        instanceCount = 1,
+                        firstVertex   = 0,
+                        firstInstance = 0
+                    )
+
+    def __prepare_scene(self, command_buffer: VkCommandBuffer):
+        vkCmdBindVertexBuffers(
+            commandBuffer = command_buffer,
+            firstBinding = 0,
+            bindingCount = 1,
+            pBuffers = [self.__triangle_mesh.vertex_buffer],
+            pOffsets = [0]
+        )
 
     def __recreate_swapchain(self):
 
@@ -351,6 +438,9 @@ class Engine:
 
         # Swapchain
         self.__cleanup_swapchain()
+
+        # Assets
+        self.__triangle_mesh.destroy()
 
         # Device
         vkDestroyDevice(self.__device, None)

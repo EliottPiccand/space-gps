@@ -15,6 +15,8 @@ from vulkan import (
     VK_COLOR_COMPONENT_R_BIT,
     VK_CULL_MODE_BACK_BIT,
     VK_FALSE,
+    VK_FORMAT_R32G32_SFLOAT,
+    VK_FORMAT_R32G32B32_SFLOAT,
     VK_FRONT_FACE_CLOCKWISE,
     VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
     VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
@@ -26,6 +28,7 @@ from vulkan import (
     VK_SAMPLE_COUNT_1_BIT,
     VK_SHADER_STAGE_FRAGMENT_BIT,
     VK_SHADER_STAGE_VERTEX_BIT,
+    VK_VERTEX_INPUT_RATE_VERTEX,
     VkAttachmentDescription,
     VkAttachmentReference,
     VkExtent2D,
@@ -43,6 +46,8 @@ from vulkan import (
     VkRect2D,
     VkRenderPassCreateInfo,
     VkSubpassDescription,
+    VkVertexInputAttributeDescription,
+    VkVertexInputBindingDescription,
     VkViewport,
     vkCreateGraphicsPipelines,
     vkCreatePipelineLayout,
@@ -129,39 +134,34 @@ def make_graphics_pipeline(
             The created pipeline layout, render pass and graphics_pipeline
     """
     # Vertex input
-    # vertex_input_binding_descriptions = [
-    #     VkVertexInputBindingDescription(
-    #         binding   = 0,
-    #         stride    = 0,
-    #         inputRate = VK_VERTEX_INPUT_RATE_VERTEX
-    #     )
-    # ]
+    vertex_input_binding_descriptions = [
+        VkVertexInputBindingDescription(
+            binding   = 0,
+            stride    = (2 + 3) * 4, # (pos + color) * float size
+            inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+        )
+    ]
 
-    # vertex_input_attribute_descriptions = [
-    #     VkVertexInputAttributeDescription(
-    #         binding  = 0,
-    #         location = 0,
-    #         format   = VK_FORMAT_R32G32_SFLOAT,
-    #         offset   = 0
-    #     ),
-    #     VkVertexInputAttributeDescription(
-    #         binding  = 0,
-    #         location = 1,
-    #         format   = VK_FORMAT_R32G32B32_SFLOAT,
-    #         offset   = 8
-    #     )
-    # ]
-
-    # vertex_input_create_info = VkPipelineVertexInputStateCreateInfo(
-    #     vertexBindingDescriptionCount   = len(vertex_input_binding_descriptions),
-    #     pVertexBindingDescriptions      = vertex_input_binding_descriptions,
-    #     vertexAttributeDescriptionCount = len(vertex_input_attribute_descriptions),
-    #     pVertexAttributeDescriptions    = vertex_input_attribute_descriptions
-    # )
+    vertex_input_attribute_descriptions = [
+        VkVertexInputAttributeDescription(
+            binding  = 0,
+            location = 0,
+            format   = VK_FORMAT_R32G32_SFLOAT,
+            offset   = 0
+        ),
+        VkVertexInputAttributeDescription(
+            binding  = 0,
+            location = 1,
+            format   = VK_FORMAT_R32G32B32_SFLOAT,
+            offset   = 8 # pos * float size
+        )
+    ]
 
     vertex_input_create_info = VkPipelineVertexInputStateCreateInfo(
-        vertexBindingDescriptionCount   = 0,
-        vertexAttributeDescriptionCount = 0
+        vertexBindingDescriptionCount   = len(vertex_input_binding_descriptions),
+        pVertexBindingDescriptions      = vertex_input_binding_descriptions,
+        vertexAttributeDescriptionCount = len(vertex_input_attribute_descriptions),
+        pVertexAttributeDescriptions    = vertex_input_attribute_descriptions
     )
 
     # Vertex shader
