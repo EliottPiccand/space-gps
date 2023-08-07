@@ -65,6 +65,7 @@ from .queue_families import QueueFamilyIndices, get_queues
 from .swapchain import SwapChainFrame, destroy_swapchain, make_swapchain
 from .sync import make_fence, make_semaphore
 from .validation_layers import destroy_debug_messenger, make_debug_messenger
+from .scene import Scene
 
 
 class Engine:
@@ -213,7 +214,7 @@ class Engine:
             frame.image_available_semaphore = make_semaphore(self.__device)
             frame.render_finished_semaphore = make_semaphore(self.__device)
 
-    def render(self):
+    def render(self, scene: Scene):
         """
         Render the scene to the screen
         """
@@ -252,11 +253,13 @@ class Engine:
         vkResetCommandBuffer(command_buffer, 0)
 
         record_draw_command(
+            pipeline_layout   = self.__pipeline_layout,
             render_pass       = self.__render_pass,
             frame_buffer      = self.__swapchain_frames[frame_index].frame_buffer,
             swapchain_extent  = self.__swapchain_extent,
             graphics_pipeline = self.__graphics_pipeline,
-            command_buffer    = command_buffer
+            command_buffer    = command_buffer,
+            scene             = scene
         )
 
         submit_info = VkSubmitInfo(

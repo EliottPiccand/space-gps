@@ -59,11 +59,11 @@ def _create_pipeline_layout(device: VkDevice) -> VkPipelineLayout:
     push_constant_model = VkPushConstantRange(
         stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
         offset     = 0,
-        size       = 4 * 4 * 4 # mat4 * float(4 bytes)
+        size       = (4 * 4) * 4 # mat4 * float(4 bytes)
     )
 
     push_constant_ranges = [
-        push_constant_model
+        push_constant_model,
     ]
 
     create_info = VkPipelineLayoutCreateInfo(

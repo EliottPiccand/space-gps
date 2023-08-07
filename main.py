@@ -5,6 +5,7 @@ The main file of the project : launch the main class
 from glfw import get_time, poll_events, set_window_title, window_should_close
 
 from src.display.engine import Engine as DisplayEngine
+from src.display.scene import Scene
 from src.logger import setup_logger
 
 
@@ -18,11 +19,12 @@ class SpaceGPS:
             640, 480,
             "Space GPS"
         )
+        self.__scene = Scene()
 
         self.__last_time = get_time()
         self.__current_time = get_time()
         self.__num_frames = 0
-        self.__frame_time = 0
+        # self.__frame_time = 0
 
     def run(self):
         """
@@ -34,7 +36,7 @@ class SpaceGPS:
     def __mainloop(self):
         poll_events()
 
-        self.__display_engine.render()
+        self.__display_engine.render(self.__scene)
 
         self.__calculate_fps()
 
@@ -48,7 +50,7 @@ class SpaceGPS:
             set_window_title(self.__display_engine.window, f"Running at {fps} fps")
             self.__last_time = self.__current_time
             self.__num_frames = -1
-            self.__frame_time = 1000 / fps
+            # self.__frame_time = 1000 / fps
 
         self.__num_frames += 1
 

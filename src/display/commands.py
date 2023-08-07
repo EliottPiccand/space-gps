@@ -5,10 +5,13 @@ Contain all functions to create the command pool
 import logging
 from typing import List, Optional
 
+from numpy import float32
+from pyrr import matrix44
 from vulkan import (
     VK_COMMAND_BUFFER_LEVEL_PRIMARY,
     VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
     VK_PIPELINE_BIND_POINT_GRAPHICS,
+    VK_SHADER_STAGE_VERTEX_BIT,
     VK_SUBPASS_CONTENTS_INLINE,
     VkClearValue,
     VkCommandBufferAllocateInfo,
@@ -24,6 +27,7 @@ from vulkan import (
     vkCmdBindPipeline,
     vkCmdDraw,
     vkCmdEndRenderPass,
+    vkCmdPushConstants,
     vkCreateCommandPool,
     vkEndCommandBuffer,
 )
@@ -35,11 +39,13 @@ from .hinting import (
     VkDevice,
     VkFrameBuffer,
     VkPipeline,
+    VkPipelineLayout,
     VkRenderPass,
     VkRenderPassBeginInfoStruct,
     VkSubpassContents,
 )
 from .queue_families import QueueFamilyIndices
+from .scene import Scene
 from .swapchain import SwapChainFrame
 
 
@@ -154,11 +160,13 @@ class RenderPassManager:
         vkCmdEndRenderPass(self.__command_buffer)
 
 def record_draw_command(
+    pipeline_layout: VkPipelineLayout,
     render_pass: VkRenderPass,
     frame_buffer: VkFrameBuffer,
     swapchain_extent: VkExtent2D,
     graphics_pipeline: VkPipeline,
-    command_buffer: VkCommandBuffer
+    command_buffer: VkCommandBuffer,
+    scene: Scene
 ):
     """Record draw command to the render pass
 
@@ -192,10 +200,28 @@ def record_draw_command(
                 graphics_pipeline
             )
 
-            vkCmdDraw(
-                commandBuffer = command_buffer,
-                vertexCount   = 3,
-                instanceCount = 1,
-                firstVertex   = 0,
-                firstInstance = 0
-            )
+
+            for pos in scene.triangle_positions:
+                model_transform = matrix44.create_from_translation(
+                    vec   = pos,
+                    dtype = float32
+                )
+
+                object_data = c_link.cast("float*", c_link.from_buffer(model_transform))
+
+                vkCmdPushConstants(
+                    commandBuffer = command_buffer,
+                    layout        = pipeline_layout,
+                    stageFlags    = VK_SHADER_STAGE_VERTEX_BIT,
+                    offset        = 0,
+                    size          = (4 * 4) * 4, # mat4 * float32
+                    pValues       = object_data
+                )
+
+                vkCmdDraw(
+                    commandBuffer = command_buffer,
+                    vertexCount   = 3,
+                    instanceCount = 1,
+                    firstVertex   = 0,
+                    firstInstance = 0
+                )
