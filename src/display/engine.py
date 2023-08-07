@@ -48,7 +48,6 @@ from .hinting import (
     VkCommandPool,
     VkDebugReportCallbackEXT,
     VkDevice,
-    VkFence,
     VkGraphicsQueue,
     VkInstance,
     VkPhysicalDevice,
@@ -56,7 +55,6 @@ from .hinting import (
     VkPipelineLayout,
     VkPresentQueue,
     VkRenderPass,
-    VkSemaphore,
     VkSurface,
     VkSurfaceFormatKHR,
     VkSwapchainKHR,
@@ -100,9 +98,11 @@ class Engine:
 
         # Swapchain
         self.__swapchain: VkSwapchainKHR = None
-        self.__swapchain_frames: List[SwapChainFrame] = []
+        self.__swapchain_frames: List[SwapChainFrame] = None
         self.__swapchain_format: VkSurfaceFormatKHR = None
         self.__swapchain_extent: VkExtent2D = None
+        self.__max_frames_in_flight: int = None
+        self.__current_frame_number = 0
         self.__make_swapchain()
 
         # Graphics pipeline
@@ -120,9 +120,6 @@ class Engine:
         self.__make_commands()
 
         # Semaphores & Fences
-        self.__in_flight_fence: VkFence = None
-        self.__image_available_semaphore: VkSemaphore = None
-        self.__render_finished_semaphore: VkSemaphore = None
         self.__make_frame_sync()
 
     def __build_glfw_window(self):
@@ -178,6 +175,8 @@ class Engine:
             self.__queue_families_indices
         )
 
+        self.__max_frames_in_flight = len(self.__swapchain_frames)
+
     def __make_graphics_pipeline(self):
         self.__pipeline_layout, self.__render_pass, self.__graphics_pipeline = \
         make_graphics_pipeline(
@@ -209,9 +208,10 @@ class Engine:
         )
 
     def __make_frame_sync(self):
-        self.__in_flight_fence = make_fence(self.__device)
-        self.__image_available_semaphore = make_semaphore(self.__device)
-        self.__render_finished_semaphore = make_semaphore(self.__device)
+        for frame in self.__swapchain_frames:
+            frame.in_flight_fence = make_fence(self.__device)
+            frame.image_available_semaphore = make_semaphore(self.__device)
+            frame.render_finished_semaphore = make_semaphore(self.__device)
 
     def render(self):
         """
@@ -223,22 +223,28 @@ class Engine:
         vkQueuePresentKHR = vkGetDeviceProcAddr(
             self.__device, "vkQueuePresentKHR")
 
+        in_flight_fence = \
+            self.__swapchain_frames[self.__current_frame_number].in_flight_fence
+        image_available_semaphore = \
+            self.__swapchain_frames[self.__current_frame_number].image_available_semaphore
+        render_finished_semaphore = \
+            self.__swapchain_frames[self.__current_frame_number].render_finished_semaphore
 
         vkWaitForFences(
             device     = self.__device,
             fenceCount = 1,
-            pFences    = [self.__in_flight_fence],
+            pFences    = [in_flight_fence],
             waitAll    = VK_TRUE,
             timeout    = RENDER_FENCE_TIMEOUT
         )
-        vkResetFences(self.__device, 1, [self.__in_flight_fence])
+        vkResetFences(self.__device, 1, [in_flight_fence])
 
 
         frame_index = vkAcquireNextImageKHR(
             device    = self.__device,
             swapchain = self.__swapchain,
             timeout   = RENDER_FENCE_TIMEOUT,
-            semaphore = self.__image_available_semaphore,
+            semaphore = image_available_semaphore,
             fence     = VK_NULL_HANDLE
         )
 
@@ -255,28 +261,31 @@ class Engine:
 
         submit_info = VkSubmitInfo(
             waitSemaphoreCount   = 1,
-            pWaitSemaphores      = [self.__image_available_semaphore],
+            pWaitSemaphores      = [image_available_semaphore],
             pWaitDstStageMask    = [VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT],
             commandBufferCount   = 1,
             pCommandBuffers      = [command_buffer],
             signalSemaphoreCount = 1,
-            pSignalSemaphores    = [self.__render_finished_semaphore]
+            pSignalSemaphores    = [render_finished_semaphore]
         )
 
         try:
-            vkQueueSubmit(self.__graphics_queue, 1, submit_info, self.__in_flight_fence)
+            vkQueueSubmit(self.__graphics_queue, 1, submit_info, in_flight_fence)
         except (VkError, VkException):
             logging.error("Failed to submit draw commands")
 
         present_info = VkPresentInfoKHR(
             waitSemaphoreCount = 1,
-            pWaitSemaphores    = [self.__render_finished_semaphore],
+            pWaitSemaphores    = [render_finished_semaphore],
             swapchainCount     = 1,
             pSwapchains        = [self.__swapchain],
             pImageIndices      = [frame_index]
         )
 
         vkQueuePresentKHR(self.__present_queue, present_info)
+
+        self.__current_frame_number += 1
+        self.__current_frame_number %= self.__max_frames_in_flight
 
     def close(self):
         """
@@ -286,11 +295,6 @@ class Engine:
         vkDeviceWaitIdle(self.__device)
 
         logging.debug("Destroying objects")
-
-        # Sync
-        vkDestroySemaphore(self.__device, self.__render_finished_semaphore, None)
-        vkDestroySemaphore(self.__device, self.__image_available_semaphore, None)
-        vkDestroyFence(self.__device, self.__in_flight_fence, None)
 
         # Commands
         vkDestroyCommandPool(self.__device, self.__command_pool, None)
@@ -304,6 +308,11 @@ class Engine:
         for frame in self.__swapchain_frames:
             vkDestroyImageView(self.__device, frame.image_view, None)
             vkDestroyFramebuffer(self.__device, frame.frame_buffer, None)
+
+            vkDestroySemaphore(self.__device, frame.render_finished_semaphore, None)
+            vkDestroySemaphore(self.__device, frame.image_available_semaphore, None)
+            vkDestroyFence(self.__device, frame.in_flight_fence, None)
+
         destroy_swapchain(self.__device, self.__swapchain)
 
         # Device

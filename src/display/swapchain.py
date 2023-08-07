@@ -31,10 +31,12 @@ from vulkan import (
 from .hinting import (
     VkCommandBuffer,
     VkDevice,
+    VkFence,
     VkFrameBuffer,
     VkImage,
     VkInstance,
     VkPhysicalDevice,
+    VkSemaphore,
     VkSurface,
     VkSurfaceFormatKHR,
     VkSurfaceTransformFlagBitsKHR,
@@ -53,9 +55,9 @@ class SwapChainFrame:
     image_view: int
     frame_buffer: Optional[VkFrameBuffer] = None
     command_buffer: Optional[VkCommandBuffer] = None
-    # in_flight_fence: Optional[VkFence] = None
-    # image_available_semaphore: Optional[VkSemaphore] = None
-    # render_finished_semaphore: Optional[VkSemaphore] = None
+    in_flight_fence: Optional[VkFence] = None
+    image_available_semaphore: Optional[VkSemaphore] = None
+    render_finished_semaphore: Optional[VkSemaphore] = None
 
 def _chose_swapchain_surface_format(
     instance: VkInstance,
