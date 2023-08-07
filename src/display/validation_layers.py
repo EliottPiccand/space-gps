@@ -96,6 +96,7 @@ def destroy_debug_messenger(
         instance (VkInstance): the instance to which the messenger is linked
         debug_messenger (VkDebugReportCallbackEXT): the messenger
     """
+
     destroy_function = vkGetInstanceProcAddr(
         instance, "vkDestroyDebugReportCallbackEXT")
     destroy_function(instance, debug_messenger, None)

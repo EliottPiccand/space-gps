@@ -22,6 +22,7 @@ def make_semaphore(device: VkDevice) -> Optional[VkSemaphore]:
         Optional[VkSemaphore]: the created semaphore. Might be None if the creation
             failed.
     """
+
     create_info = VkSemaphoreCreateInfo()
 
     try:
@@ -39,6 +40,7 @@ def make_fence(device: VkDevice) -> Optional[VkFence]:
     Returns:
         Optional[VkFence]: the created fence. Might be None if the creation failed.
     """
+
     create_info = VkFenceCreateInfo(
         flags = VK_FENCE_CREATE_SIGNALED_BIT
     )

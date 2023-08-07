@@ -107,6 +107,7 @@ def make_command_buffers(
         Optional[VkCommandPool]: The created command pool. Might be None if creation
             failed.
     """
+
     for frame in frames:
         frame.command_buffer = _make_command_buffer(device, command_pool)
 

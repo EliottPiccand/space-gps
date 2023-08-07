@@ -37,6 +37,7 @@ class QueueFamilyIndices:
         Returns:
             bool: True only if both are not None
         """
+
         return not(self.graphics is None or self.present is None)
 
 def find_queue_families(
@@ -54,6 +55,7 @@ def find_queue_families(
     Returns:
         QueueFamilyIndices: contains the indices of the queues (indices might be None)
     """
+
     indices = QueueFamilyIndices()
 
     queue_families_properties = \
@@ -91,6 +93,7 @@ def get_queues(
     Returns:
         Tuple[VkGraphicsQueue, VkPresentQueue]: the graphics and present queue
     """
+
     graphics_queue = vkGetDeviceQueue(
         device           = device,
         queueFamilyIndex = indices.graphics,

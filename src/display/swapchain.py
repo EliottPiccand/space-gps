@@ -156,10 +156,11 @@ def make_swapchain(
     Returns:
         Tuple[VkSwapchainKHR, List[SwapChainFrame], int, VkExtent2D]: In order :
             - the created swapchain
-            - its frame list
+            - its frame list (all optional attributes are None)
             - its image format
             - its extent
     """
+
     fmt, color_space = _chose_swapchain_surface_format(
         instance,
         physical_device,

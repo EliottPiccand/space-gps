@@ -294,6 +294,7 @@ class Engine:
         """
         Close the GLFW window and clean Vulkan objects
         """
+
         logging.info("Waiting for device to cleanup")
         vkDeviceWaitIdle(self.__device)
 
@@ -323,9 +324,11 @@ class Engine:
 
         # Instance
         destroy_surface(self.__instance, self.__surface)
-        destroy_debug_messenger(self.__instance, self.__debug_messenger)
+        if DEBUG:
+            destroy_debug_messenger(self.__instance, self.__debug_messenger)
         vkDestroyInstance(self.__instance, None)
 
         # Window
-        logging.debug("Closing GLFW window")
         glfw_terminate()
+
+        logging.info("Cleanup done !")
