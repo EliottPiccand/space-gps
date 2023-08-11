@@ -1,5 +1,5 @@
 """
-Contains all functions to create a descriptor set layout
+Contains all functions to create a descriptors
 """
 
 import logging
@@ -48,6 +48,7 @@ def make_descriptor_set_layout(
         Optional[VkDescriptorSetLayout]: The created descriptor set layout. Might be
             None if creation failed
     """
+
     layout_bindings = []
 
     for i in range(count):
@@ -75,6 +76,18 @@ def make_descriptor_pool(
     size: int,
     types: List[VkDescriptorType],
 ) -> Optional[VkDescriptorPool]:
+    """Create a descriptor pool
+
+    Args:
+        device (VkDevice): the device to which the descriptor pool will be linked to
+        size (int): the number of descriptors 
+        types (List[VkDescriptorType]): a list of each descriptor's type 
+
+    Returns:
+        Optional[VkDescriptorPool]: the created descriptor pool. Might be None if the
+            creation failed
+    """
+
     pool_sizes = []
 
     for _type in types:
@@ -85,8 +98,8 @@ def make_descriptor_pool(
 
     create_info = VkDescriptorPoolCreateInfo(
         poolSizeCount = len(pool_sizes),
-        pPoolSizes = pool_sizes,
-        maxSets = size
+        pPoolSizes    = pool_sizes,
+        maxSets       = size
     )
 
     try:
@@ -100,6 +113,18 @@ def allocate_descriptor_set(
     descriptor_pool: VkDescriptorPool,
     descriptor_set_layout: VkDescriptorSetLayout
 ) -> Optional[VkDescriptorSet]:
+    """Allocate the descriptor set
+
+    Args:
+        device (VkDevice): the device linked to the descriptor set
+        descriptor_pool (VkDescriptorPool): the linked descriptor pool
+        descriptor_set_layout (VkDescriptorSetLayout): the descriptor layout
+
+    Returns:
+        Optional[VkDescriptorSet]: the allocated descriptor set. Might be None if the
+            creation failed
+    """
+
     alloc_info = VkDescriptorSetAllocateInfo(
         descriptorPool = descriptor_pool,
         descriptorSetCount = 1,

@@ -5,5 +5,5 @@ disable=
     R0902, # too-many-instance-attributes
 
 [MAIN]
-good-names=e,i,dt,x,y,z,r,g,b
+good-names=e,i,dt,x,y,z,r,g,b,up
 good-names-rgxs=^([a-z]*)?([A-Z][a-z0-9]*)*((KHR)|(EXT))$

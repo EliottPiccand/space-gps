@@ -11,11 +11,11 @@ layout(binding = 0) uniform UniformBufferObject {
     mat4 viewProjection;
 } CameraData;
 
-layout(push_constant) uniform constants {
-    mat4 model;
+layout(binding = 1) readonly buffer StorageBuffer {
+    mat4 model[];
 } ObjectData;
 
 void main() {
-    gl_Position = CameraData.viewProjection * ObjectData.model * vec4(vertexPosition, 0.0, 1.0);
+    gl_Position = CameraData.viewProjection * ObjectData.model[gl_InstanceIndex] * vec4(vertexPosition, 0.0, 1.0);
     fragColor = vertexColor;
 }

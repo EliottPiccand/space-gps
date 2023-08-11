@@ -12,6 +12,7 @@ from glfw.GLFW import GLFW_CLIENT_API, GLFW_NO_API, GLFW_RESIZABLE, GLFW_TRUE
 from numpy import array, float32
 from pyrr import matrix44
 from vulkan import (
+    VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
     VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
     VK_NULL_HANDLE,
     VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -31,7 +32,6 @@ from vulkan import (
     vkCmdBindPipeline,
     vkCmdBindVertexBuffers,
     vkCmdDraw,
-    vkCmdPushConstants,
     vkDestroyBuffer,
     vkDestroyCommandPool,
     vkDestroyDescriptorPool,
@@ -226,13 +226,26 @@ class Engine:
         self.__max_frames_in_flight = len(self.__swapchain_frames)
 
     def __make_descriptor_set_layout(self):
+
+        types = [
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        ]
+
+        stage_flags = [
+            VK_SHADER_STAGE_VERTEX_BIT,
+            VK_SHADER_STAGE_VERTEX_BIT,
+        ]
+
+        count = len(types)
+
         self.__descriptor_set_layout = make_descriptor_set_layout(
-            device = self.__device,
-            count = 1,
-            indices = [0],
-            types = [VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER],
-            counts = [1],
-            stage_flags = [VK_SHADER_STAGE_VERTEX_BIT]
+            device      = self.__device,
+            count       = count,
+            indices     = list(range(count)),
+            types       = types,
+            counts      = [1] * count,
+            stage_flags = stage_flags
         )
 
     def __make_graphics_pipeline(self):
@@ -276,7 +289,10 @@ class Engine:
         self.__descriptor_pool = make_descriptor_pool(
             device = self.__device,
             size = len(self.__swapchain_frames),
-            types = [VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER]
+            types = [
+                VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            ]
         )
 
         for frame in self.__swapchain_frames:
@@ -284,7 +300,7 @@ class Engine:
             frame.image_available_semaphore = make_semaphore(self.__device)
             frame.render_finished_semaphore = make_semaphore(self.__device)
 
-            frame.make_uniform_buffer_object_resources(
+            frame.make_descriptor_resources(
                 device          = self.__device,
                 physical_device = self.__physical_device
             )
@@ -314,8 +330,8 @@ class Engine:
             command_buffer = self.__command_buffer,
             queue = self.__graphics_queue
         )
-    # ---
 
+    # Render
     def render(self, scene: Scene):
         """
         Render the scene to the screen
@@ -358,7 +374,7 @@ class Engine:
         command_buffer = frame.command_buffer
         vkResetCommandBuffer(command_buffer, 0)
 
-        self.__prepare_frame(frame_index)
+        self.__prepare_frame(frame_index, scene)
         self.__record_draw_command(
             frame_buffer   = frame.frame_buffer,
             command_buffer = command_buffer,
@@ -438,114 +454,73 @@ class Engine:
                     self.__graphics_pipeline
                 )
 
-                # self.__prepare_scene(command_buffer)
+                # self.__prepare_scene(command_buffer, scene)
 
                 # Triangles
+                first_instance = 0
+                instance_count = len(scene.triangle_positions)
+
                 vkCmdBindVertexBuffers(
                     commandBuffer = command_buffer,
-                    firstBinding  = 0,
-                    bindingCount  = 1,
-                    pBuffers      = [self.__triangle_mesh.vertex_buffer],
-                    pOffsets      = [0]
+                    firstBinding = 0,
+                    bindingCount = 1,
+                    pBuffers     = [self.__triangle_mesh.vertex_buffer],
+                    pOffsets     = [0]
                 )
 
-                for pos in scene.triangle_positions:
-                    model_transform = matrix44.create_from_translation(
-                        vec   = pos,
-                        dtype = float32
-                    )
+                vkCmdDraw(
+                    commandBuffer = command_buffer,
+                    vertexCount   = len(self.__triangle_mesh.points),
+                    instanceCount = instance_count,
+                    firstVertex   = 0,
+                    firstInstance = first_instance
+                )
 
-                    object_data = c_link.cast(
-                        "float*", c_link.from_buffer(model_transform))
-
-                    vkCmdPushConstants(
-                        commandBuffer = command_buffer,
-                        layout        = self.__pipeline_layout,
-                        stageFlags    = VK_SHADER_STAGE_VERTEX_BIT,
-                        offset        = 0,
-                        size          = (4 * 4) * 4, # mat4 * float32
-                        pValues       = object_data
-                    )
-
-                    vkCmdDraw(
-                        commandBuffer = command_buffer,
-                        vertexCount   = len(self.__triangle_mesh.points),
-                        instanceCount = 1,
-                        firstVertex   = 0,
-                        firstInstance = 0
-                    )
+                first_instance += instance_count
 
                 # Squares
+                instance_count = len(scene.square_positions)
+
                 vkCmdBindVertexBuffers(
                     commandBuffer = command_buffer,
-                    firstBinding  = 0,
-                    bindingCount  = 1,
-                    pBuffers      = [self.__square_mesh.vertex_buffer],
-                    pOffsets      = [0]
+                    firstBinding = 0,
+                    bindingCount = 1,
+                    pBuffers     = [self.__square_mesh.vertex_buffer],
+                    pOffsets     = [0]
                 )
 
-                for pos in scene.square_positions:
-                    model_transform = matrix44.create_from_translation(
-                        vec   = pos,
-                        dtype = float32
-                    )
+                vkCmdDraw(
+                    commandBuffer = command_buffer,
+                    vertexCount   = len(self.__square_mesh.points),
+                    instanceCount = instance_count,
+                    firstVertex   = 0,
+                    firstInstance = first_instance
+                )
 
-                    object_data = c_link.cast(
-                        "float*", c_link.from_buffer(model_transform))
-
-                    vkCmdPushConstants(
-                        commandBuffer = command_buffer,
-                        layout        = self.__pipeline_layout,
-                        stageFlags    = VK_SHADER_STAGE_VERTEX_BIT,
-                        offset        = 0,
-                        size          = (4 * 4) * 4, # mat4 * float32
-                        pValues       = object_data
-                    )
-
-                    vkCmdDraw(
-                        commandBuffer = command_buffer,
-                        vertexCount   = len(self.__square_mesh.points),
-                        instanceCount = 1,
-                        firstVertex   = 0,
-                        firstInstance = 0
-                    )
+                first_instance += instance_count
 
                 # Pentagons
+                instance_count = len(scene.pentagon_positions)
+
                 vkCmdBindVertexBuffers(
                     commandBuffer = command_buffer,
-                    firstBinding  = 0,
-                    bindingCount  = 1,
-                    pBuffers      = [self.__pentagon_mesh.vertex_buffer],
-                    pOffsets      = [0]
+                    firstBinding = 0,
+                    bindingCount = 1,
+                    pBuffers     = [self.__pentagon_mesh.vertex_buffer],
+                    pOffsets     = [0]
                 )
 
-                for pos in scene.pentagon_positions:
-                    model_transform = matrix44.create_from_translation(
-                        vec   = pos,
-                        dtype = float32
-                    )
+                vkCmdDraw(
+                    commandBuffer = command_buffer,
+                    vertexCount   = len(self.__pentagon_mesh.points),
+                    instanceCount = instance_count,
+                    firstVertex   = 0,
+                    firstInstance = first_instance
+                )
 
-                    object_data = c_link.cast(
-                        "float*", c_link.from_buffer(model_transform))
+                first_instance += instance_count
 
-                    vkCmdPushConstants(
-                        commandBuffer = command_buffer,
-                        layout        = self.__pipeline_layout,
-                        stageFlags    = VK_SHADER_STAGE_VERTEX_BIT,
-                        offset        = 0,
-                        size          = (4 * 4) * 4, # mat4 * float32
-                        pValues       = object_data
-                    )
-
-                    vkCmdDraw(
-                        commandBuffer = command_buffer,
-                        vertexCount   = len(self.__pentagon_mesh.points),
-                        instanceCount = 1,
-                        firstVertex   = 0,
-                        firstInstance = 0
-                    )
-
-    def __prepare_frame(self, frame_index: int):
+    def __prepare_frame(self, frame_index: int, scene: Scene):
         frame = self.__swapchain_frames[frame_index]
 
         position = array([1, 0, -1], dtype=float32)
@@ -584,16 +559,48 @@ class Engine:
             n = size
         )
 
+        # Triangles
+        i = 0
+        for pos in scene.triangle_positions:
+            frame.model_transforms[i] = matrix44.create_from_translation(
+                vec   = pos,
+                dtype = float32
+            )
+
+            i += 1
+
+        # Squares
+        for pos in scene.square_positions:
+            frame.model_transforms[i] = matrix44.create_from_translation(
+                vec   = pos,
+                dtype = float32
+            )
+
+            i += 1
+
+        # Pentagons
+        for pos in scene.pentagon_positions:
+            frame.model_transforms[i] = matrix44.create_from_translation(
+                vec   = pos,
+                dtype = float32
+            )
+
+            i += 1
+
+        flattended_data = frame.model_transforms.astype("f").tobytes()
+
+        size = i * (4 * 4) * 4 # nb of * mat4 * float32
+
+        c_link.memmove(
+            src = flattended_data,
+            dest = frame.model_buffer_write_location,
+            n = size
+        )
+
         frame.write_descriptor_set(self.__device)
 
-    def __prepare_scene(self, command_buffer: VkCommandBuffer):
-        vkCmdBindVertexBuffers(
-            commandBuffer = command_buffer,
-            firstBinding = 0,
-            bindingCount = 1,
-            pBuffers = [self.__triangle_mesh.vertex_buffer],
-            pOffsets = [0]
-        )
+    def __prepare_scene(self, command_buffer: VkCommandBuffer, scene: Scene):
+        pass
 
     def __recreate_swapchain(self):
 
@@ -670,6 +677,10 @@ class Engine:
         for frame in self.__swapchain_frames:
             vkDestroyImageView(self.__device, frame.image_view, None)
             vkDestroyFramebuffer(self.__device, frame.frame_buffer, None)
+
+            vkUnmapMemory(self.__device, frame.model_buffer_memory)
+            vkFreeMemory(self.__device, frame.model_buffer_memory, None)
+            vkDestroyBuffer(self.__device, frame.model_buffer, None)
 
             vkUnmapMemory(self.__device, frame.uniform_buffer_memory)
             vkFreeMemory(self.__device, frame.uniform_buffer_memory, None)
