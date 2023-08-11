@@ -31,7 +31,7 @@ from .hinting import (
     VkDeviceMemory,
     VkDeviceSize,
     VkGraphicsQueue,
-    VkPhysicalDevice
+    VkPhysicalDevice,
 )
 
 
