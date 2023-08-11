@@ -20,7 +20,8 @@ from vulkan import (
     vkCreateInstance,
     vkEnumerateInstanceExtensionProperties,
     vkEnumerateInstanceLayerProperties,
-    vkEnumerateInstanceVersion, vkGetInstanceProcAddr
+    vkEnumerateInstanceVersion,
+    vkGetInstanceProcAddr,
 )
 from vulkan import ffi as c_linker
 

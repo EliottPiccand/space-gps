@@ -2,7 +2,7 @@
 Contains the Scene class used to store models to render 
 """
 
-from numpy import array, float32, arange
+from numpy import arange, array, float32
 
 
 class Scene:

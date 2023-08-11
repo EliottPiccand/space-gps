@@ -5,16 +5,16 @@ Contain all functions to handle the swapchain
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
-from numpy import float32, ndarray, array
+from numpy import array, float32, ndarray
 from pyrr import matrix44
 from vulkan import (
-    VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
     VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+    VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
     VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
     VK_COMPONENT_SWIZZLE_IDENTITY,
     VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-    VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
     VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
     VK_FORMAT_B8G8R8A8_UNORM,
     VK_IMAGE_ASPECT_COLOR_BIT,
     VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
@@ -62,15 +62,15 @@ from .memory import create_buffer
 from .queue_families import QueueFamilyIndices
 
 
+@dataclass
 class UniformBufferObject:
     """
     Represent an uniform buffer object
     """
 
-    def __init__(self):
-        self.view            = matrix44.create_identity(dtype=float32)
-        self.projection      = matrix44.create_identity(dtype=float32)
-        self.view_projection = matrix44.create_identity(dtype=float32)
+    view:            Optional[ndarray] = None
+    projection:      Optional[ndarray] = None
+    view_projection: Optional[ndarray] = None
 
 @dataclass
 class SwapChainFrame:
@@ -78,29 +78,29 @@ class SwapChainFrame:
     A frame as it is stored in the swapchain
     """
 
-    image: VkImage
-    image_view: int
-    frame_buffer: Optional[VkFrameBuffer] = None
+    image:                         VkImage
+    image_view:                    int
+    frame_buffer:                  Optional[VkFrameBuffer] = None
 
-    command_buffer: Optional[VkCommandBuffer] = None
+    command_buffer:                Optional[VkCommandBuffer] = None
 
-    in_flight_fence: Optional[VkFence] = None
-    image_available_semaphore: Optional[VkSemaphore] = None
-    render_finished_semaphore: Optional[VkSemaphore] = None
+    in_flight_fence:               Optional[VkFence] = None
+    image_available_semaphore:     Optional[VkSemaphore] = None
+    render_finished_semaphore:     Optional[VkSemaphore] = None
 
-    camera_data: UniformBufferObject = None
-    uniform_buffer: Optional[VkBuffer] = None
-    uniform_buffer_memory: Optional[VkDeviceMemory] = None
+    camera_data:                   UniformBufferObject = None
+    uniform_buffer:                Optional[VkBuffer] = None
+    uniform_buffer_memory:         Optional[VkDeviceMemory] = None
     uniform_buffer_write_location: Optional[VoidPointer] = None
 
-    model_transforms: ndarray = None
-    model_buffer: Optional[VkBuffer] = None
-    model_buffer_memory: Optional[VkDeviceMemory] = None
-    model_buffer_write_location: Optional[VoidPointer] = None
+    model_transforms:              ndarray = None
+    model_buffer:                  Optional[VkBuffer] = None
+    model_buffer_memory:           Optional[VkDeviceMemory] = None
+    model_buffer_write_location:   Optional[VoidPointer] = None
 
-    uniform_buffer_descriptor: Optional[None] = None
-    model_buffer_descriptor: Optional[None] = None
-    descriptor_set: Optional[VkDescriptorSet] = None
+    uniform_buffer_descriptor:     Optional[None] = None
+    model_buffer_descriptor:       Optional[None] = None
+    descriptor_set:                Optional[VkDescriptorSet] = None
 
     def make_descriptor_resources(
         self,
@@ -178,6 +178,7 @@ class SwapChainFrame:
         Args:
             device (VkDevice): the device to which the descriptor set is linked
         """
+
         descriptor_writes = [
             VkWriteDescriptorSet(
                 dstSet          = self.descriptor_set,

@@ -6,12 +6,12 @@ from typing import Tuple
 
 from numpy import array, float32
 from vulkan import (
-    VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
     VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+    VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
     VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
     vkDestroyBuffer,
     vkFreeMemory,
     vkMapMemory,
@@ -19,8 +19,8 @@ from vulkan import (
 )
 from vulkan import ffi as c_link
 
-from .hinting import VkDevice, VkPhysicalDevice, VkCommandBuffer, VkGraphicsQueue
-from .memory import create_buffer, copy_buffer
+from .hinting import VkCommandBuffer, VkDevice, VkGraphicsQueue, VkPhysicalDevice
+from .memory import copy_buffer, create_buffer
 
 
 class Mesh:

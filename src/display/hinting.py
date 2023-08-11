@@ -4,12 +4,15 @@ Hinting for vulkan binding types
 
 from typing import Any, Literal, TypeAlias
 
-from _cffi_backend import (__CDataOwn,  # pylint: disable=no-name-in-module
-                           _CDataBase)
+from _cffi_backend import ( # pylint: disable=no-name-in-module
+    __CDataOwn,
+    _CDataBase,
+    buffer,
+)
 from vulkan import VK_FALSE, VK_TRUE
 
 
-VoidPointer: TypeAlias = None
+VoidPointer: TypeAlias = buffer
 
 Window: TypeAlias = Any # Ugly but I dont't know how to do it properly
 
@@ -46,8 +49,8 @@ VkDeviceSize: TypeAlias = int
 VkSurfaceTransformFlagBitsKHR: TypeAlias = int
 VkDescriptorType: TypeAlias = int
 VkShaderStageFlags: TypeAlias = int
-VkDescriptorSetLayout: TypeAlias = None
-VkDescriptorPool: TypeAlias = None
-VkDescriptorSet: TypeAlias = None
+VkDescriptorSetLayout: TypeAlias = _CDataBase
+VkDescriptorPool: TypeAlias = _CDataBase
+VkDescriptorSet: TypeAlias = _CDataBase
 
 VkBool: TypeAlias = Literal[VK_TRUE] | Literal[VK_FALSE]

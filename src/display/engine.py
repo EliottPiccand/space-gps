@@ -420,7 +420,6 @@ class Engine:
         descriptor_set: VkDescriptorSet,
         scene: Scene
     ):
-
         with CommandBufferManager(command_buffer):
 
             vkCmdBindDescriptorSets(

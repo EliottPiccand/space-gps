@@ -5,12 +5,16 @@ Contain all functions to handle vulkan debug messages
 import logging
 from typing import Any
 
-from vulkan import (VK_DEBUG_REPORT_DEBUG_BIT_EXT,
-                    VK_DEBUG_REPORT_ERROR_BIT_EXT,
-                    VK_DEBUG_REPORT_INFORMATION_BIT_EXT,
-                    VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT,
-                    VK_DEBUG_REPORT_WARNING_BIT_EXT, VK_FALSE,
-                    VkDebugReportCallbackCreateInfoEXT, vkGetInstanceProcAddr)
+from vulkan import (
+    VK_DEBUG_REPORT_DEBUG_BIT_EXT,
+    VK_DEBUG_REPORT_ERROR_BIT_EXT,
+    VK_DEBUG_REPORT_INFORMATION_BIT_EXT,
+    VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT,
+    VK_DEBUG_REPORT_WARNING_BIT_EXT,
+    VK_FALSE,
+    VkDebugReportCallbackCreateInfoEXT,
+    vkGetInstanceProcAddr,
+)
 
 from .hinting import VkBool, VkDebugReportCallbackEXT, VkInstance
 

@@ -7,20 +7,24 @@ from typing import List, Optional
 
 from vulkan import (
     VkDescriptorPoolCreateInfo,
-    VkDescriptorPoolSize, VkDescriptorSetAllocateInfo, vkAllocateDescriptorSets,
+    VkDescriptorPoolSize,
+    VkDescriptorSetAllocateInfo,
     VkDescriptorSetLayoutBinding,
     VkDescriptorSetLayoutCreateInfo,
     VkError,
     VkException,
+    vkAllocateDescriptorSets,
     vkCreateDescriptorPool,
     vkCreateDescriptorSetLayout,
 )
 
 from .hinting import (
+    VkDescriptorPool,
+    VkDescriptorSet,
     VkDescriptorSetLayout,
     VkDescriptorType,
     VkDevice,
-    VkShaderStageFlags,VkDescriptorPool,VkDescriptorSet
+    VkShaderStageFlags,
 )
 
 

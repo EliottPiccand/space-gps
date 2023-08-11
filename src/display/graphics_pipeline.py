@@ -69,19 +69,7 @@ def _create_pipeline_layout(
     descriptor_set_layout: VkDescriptorSetLayout
 ) -> VkPipelineLayout:
 
-    # push_constant_model = VkPushConstantRange(
-    #     stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
-    #     offset     = 0,
-    #     size       = (4 * 4) * 4 # mat4 * float(4 bytes)
-    # )
-
-    # push_constant_ranges = [
-    #     push_constant_model,
-    # ]
-
     create_info = VkPipelineLayoutCreateInfo(
-        # pushConstantRangeCount = len(push_constant_ranges),
-        # pPushConstantRanges    = push_constant_ranges,
         pushConstantRangeCount = 0,
         pPushConstantRanges    = None,
         setLayoutCount         = 1,

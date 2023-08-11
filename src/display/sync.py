@@ -5,9 +5,15 @@ Contain all functions to create semaphores and fences to syncronize the GPU and 
 import logging
 from typing import Optional
 
-from vulkan import (VK_FENCE_CREATE_SIGNALED_BIT, VkError, VkException,
-                    VkFenceCreateInfo, VkSemaphoreCreateInfo, vkCreateFence,
-                    vkCreateSemaphore)
+from vulkan import (
+    VK_FENCE_CREATE_SIGNALED_BIT,
+    VkError,
+    VkException,
+    VkFenceCreateInfo,
+    VkSemaphoreCreateInfo,
+    vkCreateFence,
+    vkCreateSemaphore,
+)
 
 from .hinting import VkDevice, VkFence, VkSemaphore
 
