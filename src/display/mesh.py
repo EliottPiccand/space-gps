@@ -21,6 +21,7 @@ from vulkan import ffi as c_link
 
 from .hinting import VkCommandBuffer, VkDevice, VkGraphicsQueue, VkPhysicalDevice
 from .memory import copy_buffer, create_buffer
+from .image import Texture
 
 
 class Mesh:
@@ -30,8 +31,9 @@ class Mesh:
 
     points: Tuple[Tuple[float, float]]
     color: Tuple[float, float, float]
+    tex: Tuple[float, float]
 
-    RADIUS = 0.05
+    RADIUS = 0.1
 
     def __init__(
         self,
@@ -41,15 +43,20 @@ class Mesh:
         queue: VkGraphicsQueue
     ):
         self.device = device
+        self.material: Texture = None
 
         # Build polygon
         np_vertices = []
-        for x, y in self.points:
+        for (x, y), (u, v) in zip(self.points, self.tex):
             np_vertices.append(x * self.RADIUS)
             np_vertices.append(y * self.RADIUS)
+
             np_vertices.append(self.color[0])
             np_vertices.append(self.color[1])
             np_vertices.append(self.color[2])
+
+            np_vertices.append(u)
+            np_vertices.append(v)
 
         self.vertices = array(np_vertices, dtype=float32)
 
@@ -123,6 +130,12 @@ class TriangleMesh(Mesh):
         (-0.5, -0.87),
     )
 
+    tex = (
+        (0.5, 0.0),
+        (1.0, 1.0),
+        (0.0, 1.0),
+    )
+
 class SquareMesh(Mesh):
     """
     Represent a square on screen
@@ -138,6 +151,16 @@ class SquareMesh(Mesh):
         ( 1,  0),
         (-1,  0),
         ( 0, -1),
+    )
+
+    tex = (
+        (0.0, 1.0),
+        (0.0, 0.0),
+        (1.0, 0.0),
+
+        (0.0, 1.0),
+        (1.0, 1.0),
+        (0.0, 1.0),
     )
 
 class PentagonMesh(Mesh):
@@ -159,4 +182,18 @@ class PentagonMesh(Mesh):
         ( 1   ,  0   ),
         (-0.81, -0.59),
         ( 0.31, -0.95),
+    )
+
+    tex = (
+        (0.0, 1.0),
+        (0.0, 0.0),
+        (1.0, 0.0),
+
+        (0.0, 1.0),
+        (1.0, 1.0),
+        (0.0, 1.0),
+
+        (0.0, 1.0),
+        (1.0, 1.0),
+        (0.0, 1.0),
     )

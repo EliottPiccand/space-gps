@@ -13,18 +13,22 @@ from vulkan import (
     VkCommandPoolCreateInfo,
     VkError,
     VkException,
+    VkSubmitInfo,
     vkAllocateCommandBuffers,
     vkBeginCommandBuffer,
     vkCmdBeginRenderPass,
     vkCmdEndRenderPass,
     vkCreateCommandPool,
     vkEndCommandBuffer,
+    vkQueueSubmit,
+    vkQueueWaitIdle,
 )
 
 from .hinting import (
     VkCommandBuffer,
     VkCommandPool,
     VkDevice,
+    VkGraphicsQueue,
     VkRenderPassBeginInfoStruct,
     VkSubpassContents,
 )
@@ -90,7 +94,7 @@ class CommandBufferManager:
     """
 
     def __init__(self, command_buffer: VkCommandBuffer, flags: int = None):
-        self.__command_buffer = command_buffer
+        self._command_buffer = command_buffer
         self.__flags = flags
 
     def __enter__(self):
@@ -98,15 +102,46 @@ class CommandBufferManager:
             flags = self.__flags
         )
         try:
-            vkBeginCommandBuffer(self.__command_buffer, begin_info)
+            vkBeginCommandBuffer(self._command_buffer, begin_info)
         except (VkError, VkException):
             logging.error("Failed to begin recording command buffer")
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         try:
-            vkEndCommandBuffer(self.__command_buffer)
+            vkEndCommandBuffer(self._command_buffer)
         except (VkError, VkException):
             logging.error("Failed to end recording command buffer")
+
+class SimpleCommandBufferManager(CommandBufferManager):
+    """
+    A context manager to begin and end VkCommandBuffer
+    """
+
+    def __init__(
+        self,
+        command_buffer: VkCommandBuffer,
+        queue: VkGraphicsQueue,
+        flags: int = None
+    ):
+        super().__init__(command_buffer, flags)
+        self.__queue = queue
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        super().__exit__(exc_type, exc_value, exc_traceback)
+
+        submit_info = VkSubmitInfo(
+            commandBufferCount = 1,
+            pCommandBuffers    = [self._command_buffer]
+        )
+
+        vkQueueSubmit(
+            queue       = self.__queue,
+            submitCount = 1,
+            pSubmits    = [submit_info],
+            fence       = None
+        )
+
+        vkQueueWaitIdle(self.__queue)
 
 class RenderPassManager:
     """

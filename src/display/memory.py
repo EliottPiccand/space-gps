@@ -10,19 +10,18 @@ from vulkan import (
     VkBufferCopy,
     VkBufferCreateInfo,
     VkMemoryAllocateInfo,
-    VkSubmitInfo,
     vkAllocateMemory,
     vkBindBufferMemory,
+    vkBindImageMemory,
     vkCmdCopyBuffer,
     vkCreateBuffer,
     vkGetBufferMemoryRequirements,
+    vkGetImageMemoryRequirements,
     vkGetPhysicalDeviceMemoryProperties,
-    vkQueueSubmit,
-    vkQueueWaitIdle,
     vkResetCommandBuffer,
 )
 
-from .commands import CommandBufferManager
+from .commands import SimpleCommandBufferManager
 from .hinting import (
     VkBuffer,
     VkBufferUsageFlagBits,
@@ -31,6 +30,7 @@ from .hinting import (
     VkDeviceMemory,
     VkDeviceSize,
     VkGraphicsQueue,
+    VkImage,
     VkPhysicalDevice,
 )
 
@@ -148,8 +148,9 @@ def copy_buffer(
         flags         = 0
     )
 
-    with CommandBufferManager(
+    with SimpleCommandBufferManager(
         command_buffer,
+        queue,
         VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
     ):
         copy_region = VkBufferCopy(
@@ -166,16 +167,42 @@ def copy_buffer(
             pRegions      = [copy_region]
         )
 
-    submit_info = VkSubmitInfo(
-        commandBufferCount = 1,
-        pCommandBuffers    = [command_buffer]
+def allocate_image_memory(
+    device: VkDevice,
+    physical_device: VkPhysicalDevice,
+    image: VkImage,
+    memory_properties: int
+) -> VkDeviceMemory:
+    """Allocate and bind memory for the given image
+
+    Args:
+        device (VkDevice): the device to which the image is linked
+        physical_device (VkPhysicalDevice): the physical device used to create the
+            device
+        image (VkImage): the image
+        memory_properties (int): the properties needed
+
+    Returns:
+        VkDeviceMemory: the allocated memory
+    """
+
+    memory_requirements = vkGetImageMemoryRequirements(device, image)
+    alloc_info = VkMemoryAllocateInfo(
+        allocationSize  = memory_requirements.size,
+        memoryTypeIndex = _find_memory_type_index(
+            physical_device = physical_device,
+            supported_memory_indices = memory_requirements.memoryTypeBits,
+            requested_properties = memory_properties
+        )
     )
 
-    vkQueueSubmit(
-        queue       = queue,
-        submitCount = 1,
-        pSubmits    = [submit_info],
-        fence       = None
+    image_memory = vkAllocateMemory(device, alloc_info, None)
+
+    vkBindImageMemory(
+        device       = device,
+        image        = image,
+        memory       = image_memory,
+        memoryOffset = 0
     )
 
-    vkQueueWaitIdle(queue)
+    return image_memory

@@ -12,11 +12,13 @@ from glfw.GLFW import GLFW_CLIENT_API, GLFW_NO_API, GLFW_RESIZABLE, GLFW_TRUE
 from numpy import array, float32
 from pyrr import matrix44
 from vulkan import (
+    VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
     VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
     VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
     VK_NULL_HANDLE,
     VK_PIPELINE_BIND_POINT_GRAPHICS,
     VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+    VK_SHADER_STAGE_FRAGMENT_BIT,
     VK_SHADER_STAGE_VERTEX_BIT,
     VK_SUBPASS_CONTENTS_INLINE,
     VK_TRUE,
@@ -94,8 +96,9 @@ from .hinting import (
     VkSwapchainKHR,
     Window,
 )
+from .image import Texture
 from .instance import destroy_surface, make_instance, make_surface
-from .mesh import PentagonMesh, SquareMesh, TriangleMesh
+from .mesh import Mesh, PentagonMesh, SquareMesh, TriangleMesh
 from .queue_families import QueueFamilyIndices, get_queues
 from .scene import Scene
 from .swapchain import SwapChainFrame, destroy_swapchain, make_swapchain
@@ -142,9 +145,10 @@ class Engine:
         self.__current_frame_number = 0
         self.__make_swapchain()
 
-        # Descriptors
-        self.__descriptor_set_layout: VkDescriptorSetLayout = None
-        self.__make_descriptor_set_layout()
+        # Descriptor sets
+        self.__frame_descriptor_set_layout: VkDescriptorSetLayout = None
+        self.__material_descriptor_set_layout: VkDescriptorSetLayout = None
+        self.__make_descriptor_set_layouts()
 
         # Graphics pipeline
         self.__pipeline_layout: VkPipelineLayout = None
@@ -168,6 +172,7 @@ class Engine:
         self.__triangle_mesh: TriangleMesh = None
         self.__square_mesh: SquareMesh = None
         self.__pentagon_mesh: PentagonMesh = None
+        self.__material_descriptor_pool: VkDescriptorPool = None
         self.__make_assets()
 
     def __build_glfw_window(self):
@@ -225,8 +230,9 @@ class Engine:
 
         self.__max_frames_in_flight = len(self.__swapchain_frames)
 
-    def __make_descriptor_set_layout(self):
+    def __make_descriptor_set_layouts(self):
 
+        # frame
         types = [
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
@@ -239,7 +245,27 @@ class Engine:
 
         count = len(types)
 
-        self.__descriptor_set_layout = make_descriptor_set_layout(
+        self.__frame_descriptor_set_layout = make_descriptor_set_layout(
+            device      = self.__device,
+            count       = count,
+            indices     = list(range(count)),
+            types       = types,
+            counts      = [1] * count,
+            stage_flags = stage_flags
+        )
+
+        # Material
+        types = [
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        ]
+
+        stage_flags = [
+            VK_SHADER_STAGE_FRAGMENT_BIT
+        ]
+
+        count = len(types)
+
+        self.__material_descriptor_set_layout = make_descriptor_set_layout(
             device      = self.__device,
             count       = count,
             indices     = list(range(count)),
@@ -251,12 +277,15 @@ class Engine:
     def __make_graphics_pipeline(self):
         self.__pipeline_layout, self.__render_pass, self.__graphics_pipeline = \
         make_graphics_pipeline(
-            device                = self.__device,
-            swapchain_extent      = self.__swapchain_extent,
-            swapchain_format      = self.__swapchain_format,
-            descriptor_set_layout = self.__descriptor_set_layout,
-            vertex_filepath       = BASE_DIR / VERT_SHADER_PATH,
-            fragment_filepath     = BASE_DIR / FRAG_SHADER_PATH
+            device                 = self.__device,
+            swapchain_extent       = self.__swapchain_extent,
+            swapchain_format       = self.__swapchain_format,
+            descriptor_set_layouts = [
+                                        self.__frame_descriptor_set_layout,
+                                        self.__material_descriptor_set_layout,
+                                    ],
+            vertex_filepath        = BASE_DIR / VERT_SHADER_PATH,
+            fragment_filepath      = BASE_DIR / FRAG_SHADER_PATH
         )
 
     def __make_frame_buffers(self):
@@ -308,27 +337,71 @@ class Engine:
             frame.descriptor_set = allocate_descriptor_set(
                 device = self.__device,
                 descriptor_pool = self.__descriptor_pool,
-                descriptor_set_layout = self.__descriptor_set_layout
+                descriptor_set_layout = self.__frame_descriptor_set_layout
             )
 
     def __make_assets(self):
         self.__triangle_mesh = TriangleMesh(
-            device = self.__device,
+            device          = self.__device,
             physical_device = self.__physical_device,
-            command_buffer = self.__command_buffer,
-            queue = self.__graphics_queue
+            command_buffer  = self.__command_buffer,
+            queue           = self.__graphics_queue
         )
+
         self.__square_mesh = SquareMesh(
-            device = self.__device,
+            device          = self.__device,
             physical_device = self.__physical_device,
-            command_buffer = self.__command_buffer,
-            queue = self.__graphics_queue
+            command_buffer  = self.__command_buffer,
+            queue           = self.__graphics_queue
         )
+
         self.__pentagon_mesh = PentagonMesh(
-            device = self.__device,
+            device          = self.__device,
             physical_device = self.__physical_device,
-            command_buffer = self.__command_buffer,
-            queue = self.__graphics_queue
+            command_buffer  = self.__command_buffer,
+            queue           = self.__graphics_queue
+        )
+
+        meshs = [
+            self.__triangle_mesh,
+            self.__square_mesh,
+            self.__pentagon_mesh
+        ]
+
+        self.__material_descriptor_pool = make_descriptor_pool(
+            device = self.__device,
+            size   = len(meshs),
+            types  = [VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER]
+        )
+
+        self.__triangle_mesh.material = Texture(
+            device                = self.__device,
+            physical_device       = self.__physical_device,
+            command_buffer        = self.__command_buffer,
+            queue                 = self.__graphics_queue,
+            descriptor_set_layout = self.__material_descriptor_set_layout,
+            descriptor_pool       = self.__material_descriptor_pool,
+            filename              = BASE_DIR / "assets" / "textures" / "face.jpg"
+        )
+
+        self.__square_mesh.material = Texture(
+            device                = self.__device,
+            physical_device       = self.__physical_device,
+            command_buffer        = self.__command_buffer,
+            queue                 = self.__graphics_queue,
+            descriptor_set_layout = self.__material_descriptor_set_layout,
+            descriptor_pool       = self.__material_descriptor_pool,
+            filename              = BASE_DIR / "assets" / "textures" / "haus.jpg"
+        )
+
+        self.__pentagon_mesh.material = Texture(
+            device                = self.__device,
+            physical_device       = self.__physical_device,
+            command_buffer        = self.__command_buffer,
+            queue                 = self.__graphics_queue,
+            descriptor_set_layout = self.__material_descriptor_set_layout,
+            descriptor_pool       = self.__material_descriptor_pool,
+            filename              = BASE_DIR / "assets" / "textures" / "noroi.png"
         )
 
     # Render
@@ -458,66 +531,60 @@ class Engine:
                 # Triangles
                 first_instance = 0
                 instance_count = len(scene.triangle_positions)
-
-                vkCmdBindVertexBuffers(
-                    commandBuffer = command_buffer,
-                    firstBinding = 0,
-                    bindingCount = 1,
-                    pBuffers     = [self.__triangle_mesh.vertex_buffer],
-                    pOffsets     = [0]
+                first_instance = self.__render_mesh(
+                    mesh           = self.__triangle_mesh,
+                    command_buffer = command_buffer,
+                    first_instance = first_instance,
+                    instance_count = instance_count
                 )
-
-                vkCmdDraw(
-                    commandBuffer = command_buffer,
-                    vertexCount   = len(self.__triangle_mesh.points),
-                    instanceCount = instance_count,
-                    firstVertex   = 0,
-                    firstInstance = first_instance
-                )
-
-                first_instance += instance_count
 
                 # Squares
                 instance_count = len(scene.square_positions)
-
-                vkCmdBindVertexBuffers(
-                    commandBuffer = command_buffer,
-                    firstBinding = 0,
-                    bindingCount = 1,
-                    pBuffers     = [self.__square_mesh.vertex_buffer],
-                    pOffsets     = [0]
+                first_instance = self.__render_mesh(
+                    mesh           = self.__square_mesh,
+                    command_buffer = command_buffer,
+                    first_instance = first_instance,
+                    instance_count = instance_count
                 )
-
-                vkCmdDraw(
-                    commandBuffer = command_buffer,
-                    vertexCount   = len(self.__square_mesh.points),
-                    instanceCount = instance_count,
-                    firstVertex   = 0,
-                    firstInstance = first_instance
-                )
-
-                first_instance += instance_count
 
                 # Pentagons
                 instance_count = len(scene.pentagon_positions)
-
-                vkCmdBindVertexBuffers(
-                    commandBuffer = command_buffer,
-                    firstBinding = 0,
-                    bindingCount = 1,
-                    pBuffers     = [self.__pentagon_mesh.vertex_buffer],
-                    pOffsets     = [0]
+                first_instance = self.__render_mesh(
+                    mesh           = self.__pentagon_mesh,
+                    command_buffer = command_buffer,
+                    first_instance = first_instance,
+                    instance_count = instance_count
                 )
 
-                vkCmdDraw(
-                    commandBuffer = command_buffer,
-                    vertexCount   = len(self.__pentagon_mesh.points),
-                    instanceCount = instance_count,
-                    firstVertex   = 0,
-                    firstInstance = first_instance
-                )
+    def __render_mesh(
+        self,
+        mesh: Mesh,
+        command_buffer: VkCommandBuffer,
+        first_instance: int,
+        instance_count: int
+    ) -> int:
+        mesh.material.use(
+            command_buffer  = command_buffer,
+            pipeline_layout = self.__pipeline_layout
+        )
 
-                first_instance += instance_count
+        vkCmdBindVertexBuffers(
+            commandBuffer = command_buffer,
+            firstBinding = 0,
+            bindingCount = 1,
+            pBuffers     = [mesh.vertex_buffer],
+            pOffsets     = [0]
+        )
+
+        vkCmdDraw(
+            commandBuffer = command_buffer,
+            vertexCount   = len(mesh.points),
+            instanceCount = instance_count,
+            firstVertex   = 0,
+            firstInstance = first_instance
+        )
+
+        return first_instance + instance_count
 
     def __prepare_frame(self, frame_index: int, scene: Scene):
         frame = self.__swapchain_frames[frame_index]
@@ -642,13 +709,23 @@ class Engine:
         # Commands
         vkDestroyCommandPool(self.__device, self.__command_pool, None)
 
+        # Assets
+        vkDestroyDescriptorPool(self.__device, self.__material_descriptor_pool, None)
+
+        self.__triangle_mesh.material.destroy()
+        self.__square_mesh.material.destroy()
+        self.__pentagon_mesh.material.destroy()
+
         # Graphics pipeline
         vkDestroyPipeline(self.__device, self.__graphics_pipeline, None)
         vkDestroyRenderPass(self.__device, self.__render_pass, None)
         vkDestroyPipelineLayout(self.__device, self.__pipeline_layout, None)
 
-        # Descriptor Set
-        vkDestroyDescriptorSetLayout(self.__device, self.__descriptor_set_layout, None)
+        # Descriptor Sets
+        vkDestroyDescriptorSetLayout(
+            self.__device, self.__frame_descriptor_set_layout, None)
+        vkDestroyDescriptorSetLayout(
+            self.__device, self.__material_descriptor_set_layout, None)
 
         # Swapchain
         self.__cleanup_swapchain()

@@ -52,5 +52,11 @@ VkShaderStageFlags: TypeAlias = int
 VkDescriptorSetLayout: TypeAlias = _CDataBase
 VkDescriptorPool: TypeAlias = _CDataBase
 VkDescriptorSet: TypeAlias = _CDataBase
+VkImageTiling: TypeAlias = None
+VkImageUsageFlags: TypeAlias = None
+VkImageLayout: TypeAlias = None
+VkColorSpaceKHR: TypeAlias = None
+VkFormat: TypeAlias = None
+VkSampler: TypeAlias = None
 
 VkBool: TypeAlias = Literal[VK_TRUE] | Literal[VK_FALSE]

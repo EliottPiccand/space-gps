@@ -53,7 +53,8 @@ from .hinting import (
     VkPhysicalDevice,
     VkSemaphore,
     VkSurface,
-    VkSurfaceFormatKHR,
+    VkFormat,
+    VkColorSpaceKHR,
     VkSurfaceTransformFlagBitsKHR,
     VkSwapchainKHR,
     VoidPointer,
@@ -210,7 +211,7 @@ def _chose_swapchain_surface_format(
     instance: VkInstance,
     physical_device: VkPhysicalDevice,
     surface: VkSurface
-) -> VkSurfaceFormatKHR:
+) -> Tuple[VkFormat, VkColorSpaceKHR]:
 
     vkGetPhysicalDeviceSurfaceFormatsKHR = vkGetInstanceProcAddr(
         instance, "vkGetPhysicalDeviceSurfaceFormatsKHR")

@@ -2,7 +2,7 @@
 Contain all functions to create the graphics pipeline
 """
 
-from typing import Tuple
+from typing import List, Tuple
 
 from vulkan import (
     VK_ATTACHMENT_LOAD_OP_CLEAR,
@@ -66,14 +66,14 @@ from .shaders import create_shader_module
 
 def _create_pipeline_layout(
     device: VkDevice,
-    descriptor_set_layout: VkDescriptorSetLayout
+    descriptor_set_layouts: List[VkDescriptorSetLayout]
 ) -> VkPipelineLayout:
 
     create_info = VkPipelineLayoutCreateInfo(
         pushConstantRangeCount = 0,
         pPushConstantRanges    = None,
-        setLayoutCount         = 1,
-        pSetLayouts            = [descriptor_set_layout]
+        setLayoutCount         = len(descriptor_set_layouts),
+        pSetLayouts            = descriptor_set_layouts
     )
 
     return vkCreatePipelineLayout(device, create_info, None)
@@ -115,7 +115,7 @@ def make_graphics_pipeline(
     device: VkDevice,
     swapchain_extent: VkExtent2D,
     swapchain_format: int,
-    descriptor_set_layout: VkDescriptorSetLayout,
+    descriptor_set_layouts: List[VkDescriptorSetLayout],
     vertex_filepath: str,
     fragment_filepath: str
 ) -> Tuple[VkPipelineLayout, VkRenderPass, VkPipeline]:
@@ -135,10 +135,14 @@ def make_graphics_pipeline(
             render pass and graphics_pipeline
     """
     # Vertex input
+
+    float_per_vertex = 7
+    bytes_per_float = 4
+
     vertex_input_binding_descriptions = [
         VkVertexInputBindingDescription(
             binding   = 0,
-            stride    = (2 + 3) * 4, # (pos + color) * float size
+            stride    = float_per_vertex * bytes_per_float,
             inputRate = VK_VERTEX_INPUT_RATE_VERTEX
         )
     ]
@@ -154,7 +158,13 @@ def make_graphics_pipeline(
             binding  = 0,
             location = 1,
             format   = VK_FORMAT_R32G32B32_SFLOAT,
-            offset   = 8 # pos * float size
+            offset   = 2 * bytes_per_float
+        ),
+        VkVertexInputAttributeDescription(
+            binding  = 0,
+            location = 2,
+            format   = VK_FORMAT_R32G32B32_SFLOAT,
+            offset   = 5 * bytes_per_float
         )
     ]
 
@@ -250,7 +260,7 @@ def make_graphics_pipeline(
         fragment_shader_stage_create_info,
     ]
 
-    pipeline_layout = _create_pipeline_layout(device, descriptor_set_layout)
+    pipeline_layout = _create_pipeline_layout(device, descriptor_set_layouts)
     render_pass = _create_render_pass(device, swapchain_format)
 
     create_info = VkGraphicsPipelineCreateInfo(
