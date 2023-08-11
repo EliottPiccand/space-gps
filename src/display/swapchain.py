@@ -5,32 +5,41 @@ Contain all functions to handle the swapchain
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
+from numpy import float32
+from pyrr import matrix44
 from vulkan import (
+    VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
     VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
-    VK_COMPONENT_SWIZZLE_IDENTITY,
+    VK_COMPONENT_SWIZZLE_IDENTITY, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
     VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
     VK_FORMAT_B8G8R8A8_UNORM,
     VK_IMAGE_ASPECT_COLOR_BIT,
     VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
     VK_IMAGE_VIEW_TYPE_2D,
+    VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
     VK_PRESENT_MODE_FIFO_KHR,
     VK_PRESENT_MODE_MAILBOX_KHR,
     VK_SHARING_MODE_CONCURRENT,
-    VK_SHARING_MODE_EXCLUSIVE,
+    VK_SHARING_MODE_EXCLUSIVE, VkWriteDescriptorSet,
     VK_TRUE,
     VkComponentMapping,
-    VkExtent2D,
+    VkExtent2D,VkDescriptorBufferInfo,
     VkImageSubresourceRange,
     VkImageViewCreateInfo,
-    VkSwapchainCreateInfoKHR,
+    VkSwapchainCreateInfoKHR, vkUpdateDescriptorSets,
     vkCreateImageView,
     vkGetDeviceProcAddr,
     vkGetInstanceProcAddr,
+    vkMapMemory,
 )
 
 from .hinting import (
+    VkBuffer,
     VkCommandBuffer,
+    VkDescriptorSet,
     VkDevice,
+    VkDeviceMemory,
     VkFence,
     VkFrameBuffer,
     VkImage,
@@ -41,9 +50,18 @@ from .hinting import (
     VkSurfaceFormatKHR,
     VkSurfaceTransformFlagBitsKHR,
     VkSwapchainKHR,
+    VoidPointer,
 )
+from .memory import create_buffer
 from .queue_families import QueueFamilyIndices
 
+
+class UniformBufferObject:
+
+    def __init__(self):
+        self.view            = matrix44.create_identity(dtype=float32)
+        self.projection      = matrix44.create_identity(dtype=float32)
+        self.view_projection = matrix44.create_identity(dtype=float32)
 
 @dataclass
 class SwapChainFrame:
@@ -54,10 +72,75 @@ class SwapChainFrame:
     image: VkImage
     image_view: int
     frame_buffer: Optional[VkFrameBuffer] = None
+
     command_buffer: Optional[VkCommandBuffer] = None
+
     in_flight_fence: Optional[VkFence] = None
     image_available_semaphore: Optional[VkSemaphore] = None
     render_finished_semaphore: Optional[VkSemaphore] = None
+
+    camera_data: UniformBufferObject = None
+    uniform_buffer: Optional[VkBuffer] = None
+    uniform_buffer_memory: Optional[VkDeviceMemory] = None
+    uniform_buffer_write_location: Optional[VoidPointer] = None
+
+    uniform_buffer_descriptor: Optional[None] = None
+    descriptor_set: Optional[VkDescriptorSet] = None
+
+    def make_uniform_buffer_object_resources(
+        self,
+        device: VkDevice,
+        physical_device: VkPhysicalDevice
+    ):
+        """Initialize the uniform buffer, its memory and its write location
+
+        Args:
+            device (VkDevice): the device to which the uniform buffer will be linked
+            physical_device (VkPhysicalDevice): the physical device used to create the
+                device
+        """
+        size = 3 * (4 * 4) * 4 # nb of * mat4 * float32
+
+        self.uniform_buffer, self.uniform_buffer_memory = create_buffer(
+            device = device,
+            physical_device = physical_device,
+            size = size,
+            usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+            requested_properties = VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+                                 | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+        )
+
+        self.uniform_buffer_write_location = vkMapMemory(
+            device = device,
+            memory = self.uniform_buffer_memory,
+            offset = 0,
+            size   = size,
+            flags  = 0
+        )
+
+        self.uniform_buffer_descriptor = VkDescriptorBufferInfo(
+            buffer = self.uniform_buffer,
+            offset = 0,
+            range  = size
+        )
+
+    def write_descriptor_set(self, device: VkDevice):
+        descriptor_write = VkWriteDescriptorSet(
+            dstSet          = self.descriptor_set,
+            dstBinding      = 0,
+            dstArrayElement = 0,
+            descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            descriptorCount = 1,
+            pBufferInfo     = self.uniform_buffer_descriptor
+        )
+
+        vkUpdateDescriptorSets(
+            device               = device,
+            descriptorWriteCount = 1,
+            pDescriptorWrites    = descriptor_write,
+            descriptorCopyCount  = 0,
+            pDescriptorCopies    = None
+        )
 
 def _chose_swapchain_surface_format(
     instance: VkInstance,
@@ -244,7 +327,8 @@ def make_swapchain(
 
         frames.append(SwapChainFrame(
             image      = image,
-            image_view = vkCreateImageView(device, image_view_create_info, None)
+            image_view = vkCreateImageView(device, image_view_create_info, None),
+            camera_data = UniformBufferObject()
         ))
 
     return swapchain, frames, fmt, extent

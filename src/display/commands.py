@@ -89,11 +89,14 @@ class CommandBufferManager:
     A context manager to begin and end VkCommandBuffer
     """
 
-    def __init__(self, command_buffer: VkCommandBuffer):
+    def __init__(self, command_buffer: VkCommandBuffer, flags: int = None):
         self.__command_buffer = command_buffer
+        self.__flags = flags
 
     def __enter__(self):
-        begin_info = VkCommandBufferBeginInfo()
+        begin_info = VkCommandBufferBeginInfo(
+            flags = self.__flags
+        )
         try:
             vkBeginCommandBuffer(self.__command_buffer, begin_info)
         except (VkError, VkException):

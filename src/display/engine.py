@@ -9,9 +9,10 @@ from glfw import create_window, get_window_size, wait_events, window_hint
 from glfw import init as glfw_init
 from glfw import terminate as glfw_terminate
 from glfw.GLFW import GLFW_CLIENT_API, GLFW_NO_API, GLFW_RESIZABLE, GLFW_TRUE
-from numpy import float32
+from numpy import array, float32
 from pyrr import matrix44
 from vulkan import (
+    VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
     VK_NULL_HANDLE,
     VK_PIPELINE_BIND_POINT_GRAPHICS,
     VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -26,11 +27,15 @@ from vulkan import (
     VkPresentInfoKHR,
     VkRenderPassBeginInfo,
     VkSubmitInfo,
+    vkCmdBindDescriptorSets,
     vkCmdBindPipeline,
     vkCmdBindVertexBuffers,
     vkCmdDraw,
     vkCmdPushConstants,
+    vkDestroyBuffer,
     vkDestroyCommandPool,
+    vkDestroyDescriptorPool,
+    vkDestroyDescriptorSetLayout,
     vkDestroyDevice,
     vkDestroyFence,
     vkDestroyFramebuffer,
@@ -41,10 +46,12 @@ from vulkan import (
     vkDestroyRenderPass,
     vkDestroySemaphore,
     vkDeviceWaitIdle,
+    vkFreeMemory,
     vkGetDeviceProcAddr,
     vkQueueSubmit,
     vkResetCommandBuffer,
     vkResetFences,
+    vkUnmapMemory,
     vkWaitForFences,
 )
 from vulkan import ffi as c_link
@@ -58,6 +65,11 @@ from .commands import (
     make_command_pool,
 )
 from .consts import FRAG_SHADER_PATH, RENDER_FENCE_TIMEOUT, VERT_SHADER_PATH
+from .descriptors import (
+    allocate_descriptor_set,
+    make_descriptor_pool,
+    make_descriptor_set_layout,
+)
 from .device import chose_physical_device, make_logical_device
 from .frame_buffer import make_frame_buffers
 from .graphics_pipeline import make_graphics_pipeline
@@ -65,6 +77,9 @@ from .hinting import (
     VkCommandBuffer,
     VkCommandPool,
     VkDebugReportCallbackEXT,
+    VkDescriptorPool,
+    VkDescriptorSet,
+    VkDescriptorSetLayout,
     VkDevice,
     VkFrameBuffer,
     VkGraphicsQueue,
@@ -80,11 +95,11 @@ from .hinting import (
     Window,
 )
 from .instance import destroy_surface, make_instance, make_surface
+from .mesh import PentagonMesh, SquareMesh, TriangleMesh
 from .queue_families import QueueFamilyIndices, get_queues
 from .scene import Scene
 from .swapchain import SwapChainFrame, destroy_swapchain, make_swapchain
 from .sync import make_fence, make_semaphore
-from .triangle_mesh import TriangleMesh
 from .validation_layers import destroy_debug_messenger, make_debug_messenger
 
 
@@ -127,6 +142,10 @@ class Engine:
         self.__current_frame_number = 0
         self.__make_swapchain()
 
+        # Descriptors
+        self.__descriptor_set_layout: VkDescriptorSetLayout = None
+        self.__make_descriptor_set_layout()
+
         # Graphics pipeline
         self.__pipeline_layout: VkPipelineLayout = None
         self.__render_pass: VkRenderPass = None
@@ -141,10 +160,14 @@ class Engine:
         self.__command_buffer: VkCommandBuffer = None
         self.__make_commands()
 
-        # Semaphores & Fences
-        self.__make_frame_sync()
+        # Frame resources
+        self.__descriptor_pool: VkDescriptorPool = None
+        self.__make_frame_resources()
 
         # Assets
+        self.__triangle_mesh: TriangleMesh = None
+        self.__square_mesh: SquareMesh = None
+        self.__pentagon_mesh: PentagonMesh = None
         self.__make_assets()
 
     def __build_glfw_window(self):
@@ -202,14 +225,25 @@ class Engine:
 
         self.__max_frames_in_flight = len(self.__swapchain_frames)
 
+    def __make_descriptor_set_layout(self):
+        self.__descriptor_set_layout = make_descriptor_set_layout(
+            device = self.__device,
+            count = 1,
+            indices = [0],
+            types = [VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER],
+            counts = [1],
+            stage_flags = [VK_SHADER_STAGE_VERTEX_BIT]
+        )
+
     def __make_graphics_pipeline(self):
         self.__pipeline_layout, self.__render_pass, self.__graphics_pipeline = \
         make_graphics_pipeline(
-            self.__device,
-            self.__swapchain_extent,
-            self.__swapchain_format,
-            BASE_DIR / VERT_SHADER_PATH,
-            BASE_DIR / FRAG_SHADER_PATH
+            device                = self.__device,
+            swapchain_extent      = self.__swapchain_extent,
+            swapchain_format      = self.__swapchain_format,
+            descriptor_set_layout = self.__descriptor_set_layout,
+            vertex_filepath       = BASE_DIR / VERT_SHADER_PATH,
+            fragment_filepath     = BASE_DIR / FRAG_SHADER_PATH
         )
 
     def __make_frame_buffers(self):
@@ -237,14 +271,49 @@ class Engine:
             self.__command_pool
         )
 
-    def __make_frame_sync(self):
+    def __make_frame_resources(self):
+
+        self.__descriptor_pool = make_descriptor_pool(
+            device = self.__device,
+            size = len(self.__swapchain_frames),
+            types = [VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER]
+        )
+
         for frame in self.__swapchain_frames:
             frame.in_flight_fence = make_fence(self.__device)
             frame.image_available_semaphore = make_semaphore(self.__device)
             frame.render_finished_semaphore = make_semaphore(self.__device)
 
+            frame.make_uniform_buffer_object_resources(
+                device          = self.__device,
+                physical_device = self.__physical_device
+            )
+
+            frame.descriptor_set = allocate_descriptor_set(
+                device = self.__device,
+                descriptor_pool = self.__descriptor_pool,
+                descriptor_set_layout = self.__descriptor_set_layout
+            )
+
     def __make_assets(self):
-        self.__triangle_mesh = TriangleMesh(self.__device, self.__physical_device)
+        self.__triangle_mesh = TriangleMesh(
+            device = self.__device,
+            physical_device = self.__physical_device,
+            command_buffer = self.__command_buffer,
+            queue = self.__graphics_queue
+        )
+        self.__square_mesh = SquareMesh(
+            device = self.__device,
+            physical_device = self.__physical_device,
+            command_buffer = self.__command_buffer,
+            queue = self.__graphics_queue
+        )
+        self.__pentagon_mesh = PentagonMesh(
+            device = self.__device,
+            physical_device = self.__physical_device,
+            command_buffer = self.__command_buffer,
+            queue = self.__graphics_queue
+        )
     # ---
 
     def render(self, scene: Scene):
@@ -284,13 +353,17 @@ class Engine:
         except VkErrorOutOfDateKhr:
             self.__recreate_swapchain()
 
-        command_buffer = self.__swapchain_frames[frame_index].command_buffer
+        frame = self.__swapchain_frames[frame_index]
+
+        command_buffer = frame.command_buffer
         vkResetCommandBuffer(command_buffer, 0)
 
+        self.__prepare_frame(frame_index)
         self.__record_draw_command(
-            frame_buffer      = self.__swapchain_frames[frame_index].frame_buffer,
-            command_buffer    = command_buffer,
-            scene             = scene
+            frame_buffer   = frame.frame_buffer,
+            command_buffer = command_buffer,
+            descriptor_set = frame.descriptor_set,
+            scene          = scene
         )
 
         submit_info = VkSubmitInfo(
@@ -328,10 +401,22 @@ class Engine:
         self,
         command_buffer: VkCommandBuffer,
         frame_buffer: VkFrameBuffer,
+        descriptor_set: VkDescriptorSet,
         scene: Scene
     ):
 
         with CommandBufferManager(command_buffer):
+
+            vkCmdBindDescriptorSets(
+                commandBuffer      = command_buffer,
+                pipelineBindPoint  = VK_PIPELINE_BIND_POINT_GRAPHICS,
+                layout             = self.__pipeline_layout,
+                firstSet           = 0,
+                descriptorSetCount = 1,
+                pDescriptorSets    = [descriptor_set],
+                dynamicOffsetCount = 0,
+                pDynamicOffsets    = [0],
+            )
 
             clear_color = VkClearValue([[1.0, 0.5, 0.25, 1.0]])
             render_pass_begin_info = VkRenderPassBeginInfo(
@@ -353,7 +438,16 @@ class Engine:
                     self.__graphics_pipeline
                 )
 
-                self.__prepare_scene(command_buffer)
+                # self.__prepare_scene(command_buffer)
+
+                # Triangles
+                vkCmdBindVertexBuffers(
+                    commandBuffer = command_buffer,
+                    firstBinding  = 0,
+                    bindingCount  = 1,
+                    pBuffers      = [self.__triangle_mesh.vertex_buffer],
+                    pOffsets      = [0]
+                )
 
                 for pos in scene.triangle_positions:
                     model_transform = matrix44.create_from_translation(
@@ -375,11 +469,122 @@ class Engine:
 
                     vkCmdDraw(
                         commandBuffer = command_buffer,
-                        vertexCount   = 3,
+                        vertexCount   = len(self.__triangle_mesh.points),
                         instanceCount = 1,
                         firstVertex   = 0,
                         firstInstance = 0
                     )
+
+                # Squares
+                vkCmdBindVertexBuffers(
+                    commandBuffer = command_buffer,
+                    firstBinding  = 0,
+                    bindingCount  = 1,
+                    pBuffers      = [self.__square_mesh.vertex_buffer],
+                    pOffsets      = [0]
+                )
+
+                for pos in scene.square_positions:
+                    model_transform = matrix44.create_from_translation(
+                        vec   = pos,
+                        dtype = float32
+                    )
+
+                    object_data = c_link.cast(
+                        "float*", c_link.from_buffer(model_transform))
+
+                    vkCmdPushConstants(
+                        commandBuffer = command_buffer,
+                        layout        = self.__pipeline_layout,
+                        stageFlags    = VK_SHADER_STAGE_VERTEX_BIT,
+                        offset        = 0,
+                        size          = (4 * 4) * 4, # mat4 * float32
+                        pValues       = object_data
+                    )
+
+                    vkCmdDraw(
+                        commandBuffer = command_buffer,
+                        vertexCount   = len(self.__square_mesh.points),
+                        instanceCount = 1,
+                        firstVertex   = 0,
+                        firstInstance = 0
+                    )
+
+                # Pentagons
+                vkCmdBindVertexBuffers(
+                    commandBuffer = command_buffer,
+                    firstBinding  = 0,
+                    bindingCount  = 1,
+                    pBuffers      = [self.__pentagon_mesh.vertex_buffer],
+                    pOffsets      = [0]
+                )
+
+                for pos in scene.pentagon_positions:
+                    model_transform = matrix44.create_from_translation(
+                        vec   = pos,
+                        dtype = float32
+                    )
+
+                    object_data = c_link.cast(
+                        "float*", c_link.from_buffer(model_transform))
+
+                    vkCmdPushConstants(
+                        commandBuffer = command_buffer,
+                        layout        = self.__pipeline_layout,
+                        stageFlags    = VK_SHADER_STAGE_VERTEX_BIT,
+                        offset        = 0,
+                        size          = (4 * 4) * 4, # mat4 * float32
+                        pValues       = object_data
+                    )
+
+                    vkCmdDraw(
+                        commandBuffer = command_buffer,
+                        vertexCount   = len(self.__pentagon_mesh.points),
+                        instanceCount = 1,
+                        firstVertex   = 0,
+                        firstInstance = 0
+                    )
+
+    def __prepare_frame(self, frame_index: int):
+        frame = self.__swapchain_frames[frame_index]
+
+        position = array([1, 0, -1], dtype=float32)
+        target = array([0, 0, 0], dtype=float32)
+        up = array([0, 0, -1], dtype=float32)
+
+        frame.camera_data.view = matrix44.create_look_at(
+            position, target, up, dtype=float32)
+
+        fov = 45
+        aspect = self.__swapchain_extent.width / self.__swapchain_extent.height
+        near = 0.1
+        far = 10
+        frame.camera_data.projection = matrix44.create_perspective_projection(
+            fov, aspect, near, far, dtype=float32
+        )
+
+        frame.camera_data.projection[1][1] *= -1 # OpenGL -> Vulkan
+
+        frame.camera_data.view_projection = matrix44.multiply(
+            frame.camera_data.view,
+            frame.camera_data.projection
+        )
+
+        flattended_data = (
+              frame.camera_data.view.astype("f").tobytes()
+            + frame.camera_data.projection.astype("f").tobytes()
+            + frame.camera_data.view_projection.astype("f").tobytes()
+        )
+
+        size = 3 * (4 * 4) * 4 # nb of * mat4 * float32
+
+        c_link.memmove(
+            src = flattended_data,
+            dest = frame.uniform_buffer_write_location,
+            n = size
+        )
+
+        frame.write_descriptor_set(self.__device)
 
     def __prepare_scene(self, command_buffer: VkCommandBuffer):
         vkCmdBindVertexBuffers(
@@ -415,7 +620,7 @@ class Engine:
                 self.__command_pool
             )
 
-        self.__make_frame_sync()
+        self.__make_frame_resources()
 
     # Cleanup
     def cleanup(self):
@@ -436,11 +641,16 @@ class Engine:
         vkDestroyRenderPass(self.__device, self.__render_pass, None)
         vkDestroyPipelineLayout(self.__device, self.__pipeline_layout, None)
 
+        # Descriptor Set
+        vkDestroyDescriptorSetLayout(self.__device, self.__descriptor_set_layout, None)
+
         # Swapchain
         self.__cleanup_swapchain()
 
         # Assets
         self.__triangle_mesh.destroy()
+        self.__square_mesh.destroy()
+        self.__pentagon_mesh.destroy()
 
         # Device
         vkDestroyDevice(self.__device, None)
@@ -461,8 +671,14 @@ class Engine:
             vkDestroyImageView(self.__device, frame.image_view, None)
             vkDestroyFramebuffer(self.__device, frame.frame_buffer, None)
 
+            vkUnmapMemory(self.__device, frame.uniform_buffer_memory)
+            vkFreeMemory(self.__device, frame.uniform_buffer_memory, None)
+            vkDestroyBuffer(self.__device, frame.uniform_buffer, None)
+
             vkDestroySemaphore(self.__device, frame.render_finished_semaphore, None)
             vkDestroySemaphore(self.__device, frame.image_available_semaphore, None)
             vkDestroyFence(self.__device, frame.in_flight_fence, None)
+
+        vkDestroyDescriptorPool(self.__device, self.__descriptor_pool, None)
 
         destroy_swapchain(self.__device, self.__swapchain)

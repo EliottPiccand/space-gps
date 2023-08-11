@@ -55,11 +55,20 @@ from vulkan import (
     vkDestroyShaderModule,
 )
 
-from .hinting import VkDevice, VkPipeline, VkPipelineLayout, VkRenderPass
+from .hinting import (
+    VkDescriptorSetLayout,
+    VkDevice,
+    VkPipeline,
+    VkPipelineLayout,
+    VkRenderPass,
+)
 from .shaders import create_shader_module
 
 
-def _create_pipeline_layout(device: VkDevice) -> VkPipelineLayout:
+def _create_pipeline_layout(
+    device: VkDevice,
+    descriptor_set_layout: VkDescriptorSetLayout
+) -> VkPipelineLayout:
 
     push_constant_model = VkPushConstantRange(
         stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
@@ -74,7 +83,8 @@ def _create_pipeline_layout(device: VkDevice) -> VkPipelineLayout:
     create_info = VkPipelineLayoutCreateInfo(
         pushConstantRangeCount = len(push_constant_ranges),
         pPushConstantRanges    = push_constant_ranges,
-        setLayoutCount         = 0
+        setLayoutCount         = 1,
+        pSetLayouts            = [descriptor_set_layout]
     )
 
     return vkCreatePipelineLayout(device, create_info, None)
@@ -116,6 +126,7 @@ def make_graphics_pipeline(
     device: VkDevice,
     swapchain_extent: VkExtent2D,
     swapchain_format: int,
+    descriptor_set_layout: VkDescriptorSetLayout,
     vertex_filepath: str,
     fragment_filepath: str
 ) -> Tuple[VkPipelineLayout, VkRenderPass, VkPipeline]:
@@ -126,12 +137,13 @@ def make_graphics_pipeline(
         swapchain_extent (VkExtent2D): the swapchain extent to which the pipeline layout
             will be linked
         swapchain_format (int): the linked swapchain image format
+        descriptor_set_layout (VkDescriptorSetLayout): the descriptor set layout to use
         vertex_filepath (str): the path to shader.vert
         fragment_filepath (str): the path to shader.frag
 
     Returns:
-        Tuple[VkPipelineLayout, VkRenderPass, VkPipeline]:
-            The created pipeline layout, render pass and graphics_pipeline
+        Tuple[VkPipelineLayout, VkRenderPass, VkPipeline]: The created pipeline layout,
+            render pass and graphics_pipeline
     """
     # Vertex input
     vertex_input_binding_descriptions = [
@@ -249,7 +261,7 @@ def make_graphics_pipeline(
         fragment_shader_stage_create_info,
     ]
 
-    pipeline_layout = _create_pipeline_layout(device)
+    pipeline_layout = _create_pipeline_layout(device, descriptor_set_layout)
     render_pass = _create_render_pass(device, swapchain_format)
 
     create_info = VkGraphicsPipelineCreateInfo(

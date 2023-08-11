@@ -8,6 +8,9 @@ from _cffi_backend import (__CDataOwn,  # pylint: disable=no-name-in-module
                            _CDataBase)
 from vulkan import VK_FALSE, VK_TRUE
 
+
+VoidPointer: TypeAlias = None
+
 Window: TypeAlias = Any # Ugly but I dont't know how to do it properly
 
 VkInstance: TypeAlias = _CDataBase
@@ -41,5 +44,10 @@ VkDeviceMemory: TypeAlias = _CDataBase
 VkBufferUsageFlagBits: TypeAlias = int
 VkDeviceSize: TypeAlias = int
 VkSurfaceTransformFlagBitsKHR: TypeAlias = int
+VkDescriptorType: TypeAlias = int
+VkShaderStageFlags: TypeAlias = int
+VkDescriptorSetLayout: TypeAlias = None
+VkDescriptorPool: TypeAlias = None
+VkDescriptorSet: TypeAlias = None
 
 VkBool: TypeAlias = Literal[VK_TRUE] | Literal[VK_FALSE]
