@@ -1,5 +1,9 @@
-"""
-All general constants for the project
+"""All general constants for the project.
+
+Constants:
+    BASE_DIR: Path
+    DEBUG: bool
+    APPLICATION_VERSION: Tuple[int, int, int]
 """
 
 from pathlib import Path

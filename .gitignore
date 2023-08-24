@@ -1,4 +1,5 @@
 .old/
+.tmp/
 .venv/
 test.py
 **.pyc

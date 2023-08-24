@@ -1,62 +1,99 @@
-"""
-Hinting for vulkan binding types
+"""Hintings for vulkan binding and GLFW types.
+
+TypesAlias:
+    VoidPointer
+
+    GLFWWindow
+
+    VkInstance
+    VkDebugUtilsMessengerEXT
+    VkDebugUtilsMessageSeverityFlagBitsEXT
+    VkDebugUtilsMessageTypeFlagsEXT
+    VkDebugUtilsMessengerCallbackDataEXT
+    VkPhysicalDevice
+    VkDevice
+    VkGraphicsQueue
+    VkPresentQueue
+    VkSurfaceKHR
+    VkSurfaceCapabilitiesKHR
+    VkSurfaceFormatKHR
+    VkPresentModeKHR
+    VkSwapchainKHR
+    VkImage
+    VkFormat
+    VkImageView
+    VkShaderModule
+    VkPipelineLayout
+    VkRenderPass
+    VkPipeline
+    VkFrameBuffer
+    VkCommandPool
+    VkCommandBuffer
+    VkSemaphore
+    VkFence
+    VkBuffer
+    VkMemoryPropertyFlags
+    VkDeviceMemory
+    VkBufferUsageFlags
 """
 
-from typing import Any, Literal, TypeAlias
+from typing import TypeAlias
 
-from _cffi_backend import ( # pylint: disable=no-name-in-module
+from _cffi_backend import (  # pylint: disable=no-name-in-module
     __CDataOwn,
     _CDataBase,
     buffer,
 )
-from vulkan import VK_FALSE, VK_TRUE
+from glfw import _GLFWwindow
 
+VoidPointer: TypeAlias = buffer | _CDataBase
 
-VoidPointer: TypeAlias = buffer
-
-Window: TypeAlias = Any # Ugly but I dont't know how to do it properly
+# NOTE: Supposed to be glfw.LP__GLFWwindow but it is not importable
+GLFWWindow: TypeAlias = _GLFWwindow
 
 VkInstance: TypeAlias = _CDataBase
-VkDebugReportCallbackEXT: TypeAlias = _CDataBase
+VkDebugUtilsMessengerEXT: TypeAlias = _CDataBase
+VkDebugUtilsMessageSeverityFlagBitsEXT: TypeAlias = int
+VkDebugUtilsMessageTypeFlagsEXT: TypeAlias = int
+VkDebugUtilsMessengerCallbackDataEXT: TypeAlias = _CDataBase
 VkPhysicalDevice: TypeAlias = _CDataBase
 VkDevice: TypeAlias = _CDataBase
 VkGraphicsQueue: TypeAlias = _CDataBase
 VkPresentQueue: TypeAlias = _CDataBase
-VkSurface: TypeAlias = _CDataBase
+VkSurfaceKHR: TypeAlias = _CDataBase
 VkSurfaceCapabilitiesKHR: TypeAlias = __CDataOwn
-VkSurfaceFormatsKHR: TypeAlias = __CDataOwn
 VkSurfaceFormatKHR: TypeAlias = _CDataBase
 VkPresentModeKHR: TypeAlias = __CDataOwn
 VkSwapchainKHR: TypeAlias = _CDataBase
 VkImage: TypeAlias = __CDataOwn
+VkFormat: TypeAlias = int
 VkImageView: TypeAlias = _CDataBase
 VkShaderModule: TypeAlias = _CDataBase
-VkRenderPass: TypeAlias = _CDataBase
 VkPipelineLayout: TypeAlias = _CDataBase
+VkRenderPass: TypeAlias = _CDataBase
 VkPipeline: TypeAlias = _CDataBase
 VkFrameBuffer: TypeAlias = _CDataBase
 VkCommandPool: TypeAlias = _CDataBase
 VkCommandBuffer: TypeAlias = _CDataBase
 VkSemaphore: TypeAlias = _CDataBase
 VkFence: TypeAlias = _CDataBase
-VkRenderPassBeginInfoStruct: TypeAlias = __CDataOwn
-VkSubpassContents: TypeAlias = int
-VkMemoryPropertyFlags: TypeAlias = int
 VkBuffer: TypeAlias = _CDataBase
+VkMemoryPropertyFlags: TypeAlias = int
 VkDeviceMemory: TypeAlias = _CDataBase
-VkBufferUsageFlagBits: TypeAlias = int
-VkDeviceSize: TypeAlias = int
-VkSurfaceTransformFlagBitsKHR: TypeAlias = int
-VkDescriptorType: TypeAlias = int
-VkShaderStageFlags: TypeAlias = int
-VkDescriptorSetLayout: TypeAlias = _CDataBase
-VkDescriptorPool: TypeAlias = _CDataBase
-VkDescriptorSet: TypeAlias = _CDataBase
-VkImageTiling: TypeAlias = None
-VkImageUsageFlags: TypeAlias = None
-VkImageLayout: TypeAlias = None
-VkColorSpaceKHR: TypeAlias = None
-VkFormat: TypeAlias = None
-VkSampler: TypeAlias = None
+VkBufferUsageFlags: TypeAlias = int
+# VkRenderPassBeginInfoStruct: TypeAlias = __CDataOwn
+# VkSubpassContents: TypeAlias = int
+# VkBufferUsageFlagBits: TypeAlias = int
+# VkDeviceSize: TypeAlias = int
+# VkSurfaceTransformFlagBitsKHR: TypeAlias = int
+# VkDescriptorType: TypeAlias = int
+# VkShaderStageFlags: TypeAlias = int
+# VkDescriptorSetLayout: TypeAlias = _CDataBase
+# VkDescriptorPool: TypeAlias = _CDataBase
+# VkDescriptorSet: TypeAlias = _CDataBase
+# VkImageTiling: TypeAlias = None
+# VkImageUsageFlags: TypeAlias = None
+# VkImageLayout: TypeAlias = None
+# VkColorSpaceKHR: TypeAlias = None
 
-VkBool: TypeAlias = Literal[VK_TRUE] | Literal[VK_FALSE]
+# VkSampler: TypeAlias = None

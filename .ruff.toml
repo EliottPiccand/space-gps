@@ -1,0 +1,38 @@
+exclude = ["**/Lib/**"]
+
+select = [
+    "F", "E", "W", "I", "N", "D", "UP", "YTT", "ANN", "ASYNC", "S", "BLE",
+    "FBT", "B", "A", "COM", "CPY", "C4", "DTZ", "T10", "DJ", "EM", "EXE", "FA",
+    "ISC", "ICN", "G", "INP", "PIE", "T20", "PYI", "Q", "RSE", "RET", "SLF",
+    "SLOT", "SIM", "TID", "TCH", "INT", "ARG", "PTH", "TD", "FIX", "ERA", "PL",
+    "TRY", "FLY", "NPY", "AIR", "PERF", "RUF"
+]
+
+ignore = [
+    "ANN101", # missing-type-self
+    "ANN102", # missing-type-cls
+    "ANN002", # missing-type-args
+    "ANN003", # missing-type-kwargs
+    "ANN204", # missing-return-type-special-method
+    "D105", # undocumented-magic-method
+    "D107", # undocumented-public-init
+    "PLR0913", # too-many-arguments
+    
+]
+
+line-length=79
+
+[pydocstyle]
+convention = "google"
+
+[pep8-naming]
+ignore-names = [
+    "vkDestroySurfaceKHR", "vkGetPhysicalDeviceSurfaceSupportKHR",
+    "vkCreateDebugUtilsMessengerEXT", "vkDestroyDebugUtilsMessengerEXT",
+    "vkGetPhysicalDeviceSurfaceCapabilitiesKHR",
+    "vkGetPhysicalDeviceSurfaceFormatsKHR",
+    "vkGetPhysicalDeviceSurfacePresentModesKHR",
+    "vkCreateSwapchainKHR", "vkDestroySwapchainKHR",
+    "vkGetSwapchainImagesKHR", "vkAcquireNextImageKHR",
+    "vkQueuePresentKHR",
+]

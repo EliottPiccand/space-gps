@@ -1,9 +1,12 @@
 [MASTER]
 disable=
+    R0902, # too-many-instance-attributes
     R0914, # too-many-locals
     R0913, # too-many-arguments
-    R0902, # too-many-instance-attributes
 
 [MAIN]
-good-names=e,i,dt,x,y,z,r,g,b,up
+good-names=e,i,n,dt
 good-names-rgxs=^([a-z]*)?([A-Z][a-z0-9]*)*((KHR)|(EXT))$
+
+[FORMAT]
+max-line-length=79
